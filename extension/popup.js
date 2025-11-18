@@ -1,41 +1,75 @@
+// ====== 脚本开始执行 ======
+console.log('🚀 popup.js 文件已加载！', new Date().toISOString());
+console.log('当前 URL:', window.location.href);
+console.log('document:', document);
+console.log('document.readyState:', document.readyState);
+
 // 初始化popup界面
-document.addEventListener('DOMContentLoaded', async () => {
-  // 获取当前标签页信息
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+async function initPopup() {
+  console.log('=== initPopup 函数被调用 ===', new Date().toISOString());
+  console.log('document.readyState:', document.readyState);
+  console.log('document.body:', document.body);
   
-  if (tab) {
-    document.getElementById('currentUrl').textContent = tab.url || '-';
-    document.getElementById('pageTitle').textContent = tab.title || '-';
+  try {
+    // 获取当前标签页信息
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     
-    // 检测当前页面的规则
-    await detectRule(tab.id);
+    if (tab) {
+      const urlEl = document.getElementById('currentUrl');
+      const titleEl = document.getElementById('pageTitle');
+      if (urlEl) urlEl.textContent = tab.url || '-';
+      if (titleEl) titleEl.textContent = tab.title || '-';
+      
+      // 检测当前页面的规则
+      await detectRule(tab.id);
+    } else {
+      const urlEl = document.getElementById('currentUrl');
+      const titleEl = document.getElementById('pageTitle');
+      if (urlEl) urlEl.textContent = '无法获取标签页信息';
+      if (titleEl) titleEl.textContent = '-';
+    }
+  } catch (error) {
+    console.error('获取标签页信息失败:', error);
+    const urlEl = document.getElementById('currentUrl');
+    const titleEl = document.getElementById('pageTitle');
+    if (urlEl) urlEl.textContent = '获取失败';
+    if (titleEl) titleEl.textContent = '-';
   }
 
   // 更新数据统计
-  await updateDataCount();
+  try {
+    await updateDataCount();
+  } catch (error) {
+    console.error('更新数据统计失败:', error);
+  }
 
-  // 绑定事件
-  document.getElementById('startCrawl').addEventListener('click', startCrawl);
-  document.getElementById('stopCrawl').addEventListener('click', stopCrawl);
-  document.getElementById('viewData').addEventListener('click', viewData);
-  document.getElementById('exportData').addEventListener('click', exportData);
-  document.getElementById('clearData').addEventListener('click', clearData);
-  document.getElementById('testDbConnection').addEventListener('click', testDbConnection);
-  document.getElementById('saveDbConfig').addEventListener('click', saveDbConfig);
-  document.getElementById('useMySQL').addEventListener('change', onStorageTypeChange);
-  document.getElementById('crawlMode').addEventListener('change', onCrawlModeChange);
-  
+  // 绑定事件 - 确保总是绑定，即使前面的步骤失败
+  console.log('准备调用 bindEvents()...');
+  bindEvents();
+  console.log('bindEvents() 调用完成');
+
   // 初始化模式显示
   onCrawlModeChange();
 
   // 加载数据库配置
-  await loadDbConfig();
-  await checkDbStatus();
+  try {
+    await loadDbConfig();
+    await checkDbStatus();
+  } catch (error) {
+    console.error('加载数据库配置失败:', error);
+  }
   
   // 加载存储类型设置
-  const storage = await chrome.storage.local.get(['useMySQL']);
-  if (storage.useMySQL !== undefined) {
-    document.getElementById('useMySQL').checked = storage.useMySQL;
+  try {
+    const storage = await chrome.storage.local.get(['useMySQL']);
+    if (storage.useMySQL !== undefined) {
+      const useMySQLEl = document.getElementById('useMySQL');
+      if (useMySQLEl) {
+        useMySQLEl.checked = storage.useMySQL;
+      }
+    }
+  } catch (error) {
+    console.error('加载存储类型设置失败:', error);
   }
 
   // 监听爬取状态
@@ -61,7 +95,104 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
   });
-});
+}
+
+// 绑定所有事件监听器
+function bindEvents() {
+  console.log('=== bindEvents 函数被调用 ===', new Date().toISOString());
+  console.log('document.readyState:', document.readyState);
+  console.log('document.body:', document.body);
+  
+  const startCrawlBtn = document.getElementById('startCrawl');
+  console.log('查找 startCrawl 按钮，结果:', startCrawlBtn);
+  
+  const stopCrawlBtn = document.getElementById('stopCrawl');
+  const viewDataBtn = document.getElementById('viewData');
+  const exportDataBtn = document.getElementById('exportData');
+  const clearDataBtn = document.getElementById('clearData');
+  const testDbConnectionBtn = document.getElementById('testDbConnection');
+  const saveDbConfigBtn = document.getElementById('saveDbConfig');
+  const useMySQLEl = document.getElementById('useMySQL');
+  const crawlModeEl = document.getElementById('crawlMode');
+
+  if (startCrawlBtn) {
+    console.log('找到 startCrawl 按钮，绑定点击事件');
+    startCrawlBtn.addEventListener('click', (e) => {
+      console.log('=== startCrawl 按钮被点击 ===', e);
+      e.preventDefault();
+      e.stopPropagation();
+      startCrawl();
+    });
+    console.log('startCrawl 按钮事件已绑定');
+  } else {
+    console.error('找不到 startCrawl 按钮');
+  }
+
+  if (stopCrawlBtn) {
+    stopCrawlBtn.addEventListener('click', stopCrawl);
+  } else {
+    console.error('找不到 stopCrawl 按钮');
+  }
+
+  if (viewDataBtn) {
+    viewDataBtn.addEventListener('click', viewData);
+  } else {
+    console.error('找不到 viewData 按钮');
+  }
+
+  if (exportDataBtn) {
+    exportDataBtn.addEventListener('click', exportData);
+  } else {
+    console.error('找不到 exportData 按钮');
+  }
+
+  if (clearDataBtn) {
+    clearDataBtn.addEventListener('click', clearData);
+  } else {
+    console.error('找不到 clearData 按钮');
+  }
+
+  if (testDbConnectionBtn) {
+    testDbConnectionBtn.addEventListener('click', testDbConnection);
+  } else {
+    console.error('找不到 testDbConnection 按钮');
+  }
+
+  if (saveDbConfigBtn) {
+    saveDbConfigBtn.addEventListener('click', saveDbConfig);
+  } else {
+    console.error('找不到 saveDbConfig 按钮');
+  }
+
+  if (useMySQLEl) {
+    useMySQLEl.addEventListener('change', onStorageTypeChange);
+  } else {
+    console.error('找不到 useMySQL 复选框');
+  }
+
+  if (crawlModeEl) {
+    crawlModeEl.addEventListener('change', onCrawlModeChange);
+  } else {
+    console.error('找不到 crawlMode 选择框');
+  }
+}
+
+// 页面加载完成后初始化
+console.log('=== popup.js 脚本开始执行 ===', new Date().toISOString());
+console.log('document.readyState:', document.readyState);
+console.log('document.body:', document.body);
+
+if (document.readyState === 'loading') {
+  console.log('DOM 正在加载，等待 DOMContentLoaded 事件...');
+  document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOMContentLoaded 事件触发');
+    initPopup();
+  });
+} else {
+  // DOM 已经加载完成，直接初始化
+  console.log('DOM 已加载完成，直接初始化');
+  initPopup();
+}
 
 // 检测规则
 async function detectRule(tabId) {
@@ -129,50 +260,176 @@ function onCrawlModeChange() {
 
 // 开始爬取
 async function startCrawl() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  const crawlModeEl = safeGetElement('crawlMode');
-  const selectorEl = safeGetElement('selector');
-  const delayEl = safeGetElement('delay');
+  console.log('=== startCrawl 函数被调用 ===', new Date().toISOString());
   
-  if (!crawlModeEl || !delayEl) return;
-  
-  const crawlMode = crawlModeEl.value;
-  const selector = selectorEl ? selectorEl.value : '';
-  const delay = parseInt(delayEl.value) || 2000;
-
-  // 验证
-  if (crawlMode === 'custom' && !selector) {
-    alert('自定义模式下请输入CSS选择器');
-    return;
-  }
-
   try {
-    await chrome.tabs.sendMessage(tab.id, {
+    console.log('查询当前标签页...');
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    console.log('查询结果:', tab);
+    
+    if (!tab || !tab.id) {
+      alert('无法获取当前标签页信息');
+      console.error('无法获取标签页:', tab);
+      return;
+    }
+    
+    console.log('当前标签页 ID:', tab.id, 'URL:', tab.url);
+    
+    const crawlModeEl = safeGetElement('crawlMode');
+    const selectorEl = safeGetElement('selector');
+    const delayEl = safeGetElement('delay');
+    
+    if (!crawlModeEl || !delayEl) {
+      console.error('找不到必要的元素:', { crawlModeEl, delayEl });
+      return;
+    }
+    
+    const crawlMode = crawlModeEl.value;
+    const selector = selectorEl ? selectorEl.value : '';
+    const delay = parseInt(delayEl.value) || 2000;
+
+    // 验证
+    if (crawlMode === 'custom' && !selector) {
+      alert('自定义模式下请输入CSS选择器');
+      return;
+    }
+
+    const message = {
       type: 'startCrawl',
       selector: crawlMode === 'custom' ? selector : null,
       delay: delay,
       ruleType: crawlMode
-    });
+    };
+    
+    console.log('准备发送消息到 content script:', message);
+    
+    // 检查是否是特殊页面（无法注入 content script）
+    if (tab.url && (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://') || tab.url.startsWith('about:'))) {
+      alert('当前页面不支持内容脚本注入，请在其他网页上使用此功能');
+      return;
+    }
+    
+    // 先检查 content script 是否已加载
+    console.log('检查 content script 是否已加载...');
+    let contentScriptReady = false;
+    
+    try {
+      const pingResponse = await chrome.tabs.sendMessage(tab.id, { type: 'ping' });
+      console.log('Ping 响应:', pingResponse);
+      contentScriptReady = true;
+    } catch (pingError) {
+      console.warn('Content script 未响应 ping，错误:', pingError.message);
+      console.log('尝试手动注入 content script...');
+      
+      // 尝试手动注入所有需要的脚本
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: [
+            'rules/rules.js',
+            'rules/matcher.js',
+            'crawler/CrawlerEngine.js',
+            'content.js'
+          ]
+        });
+        console.log('已手动注入 content scripts');
+        
+        // 等待脚本初始化
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // 再次尝试 ping
+        try {
+          const retryPing = await chrome.tabs.sendMessage(tab.id, { type: 'ping' });
+          console.log('重试 ping 成功:', retryPing);
+          contentScriptReady = true;
+        } catch (retryError) {
+          console.error('重试 ping 仍然失败:', retryError);
+          throw new Error('无法与 content script 建立连接。请刷新页面后重试。');
+        }
+      } catch (injectError) {
+        console.error('注入脚本失败:', injectError);
+        throw new Error('无法注入 content script: ' + injectError.message);
+      }
+    }
+    
+    if (!contentScriptReady) {
+      throw new Error('Content script 未准备好');
+    }
+    
+    // 发送实际消息
+    console.log('=== 准备发送 startCrawl 消息 ===');
+    console.log('消息内容:', JSON.stringify(message, null, 2));
+    console.log('目标标签页 ID:', tab.id);
+    
+    let response = null;
+    let retries = 3;
+    let lastError = null;
+    
+    while (retries > 0) {
+      try {
+        console.log(`尝试发送消息 (剩余 ${retries} 次)...`);
+        response = await chrome.tabs.sendMessage(tab.id, message);
+        console.log('=== 收到 content script 响应 ===', response);
+        break;
+      } catch (error) {
+        lastError = error;
+        retries--;
+        console.error(`发送消息失败，剩余重试次数: ${retries}`);
+        console.error('错误对象:', error);
+        console.error('错误详情:', {
+          message: error.message,
+          name: error.name,
+          stack: error.stack
+        });
+        
+        if (retries > 0) {
+          console.log('等待 500ms 后重试...');
+          // 等待后重试
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+    }
+    
+    if (!response && lastError) {
+      throw lastError;
+    }
+    
     updateStatus('运行中...');
     updateButtonStates(true);
   } catch (error) {
     console.error('启动爬取失败:', error);
-    alert('启动爬取失败: ' + error.message);
+    console.error('错误详情:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    alert('启动爬取失败: ' + error.message + '\n请检查控制台获取更多信息');
   }
 }
 
 // 停止爬取
 async function stopCrawl() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  console.log('stopCrawl 函数被调用');
   
   try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    if (!tab || !tab.id) {
+      console.error('无法获取标签页');
+      return;
+    }
+    
+    console.log('发送停止消息到标签页:', tab.id);
+    
     await chrome.tabs.sendMessage(tab.id, {
       type: 'stopCrawl'
     });
+    
     updateStatus('已停止');
     updateButtonStates(false);
   } catch (error) {
     console.error('停止爬取失败:', error);
+    alert('停止爬取失败: ' + error.message);
   }
 }
 

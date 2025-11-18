@@ -36,12 +36,12 @@ async function saveData(data) {
 }
 
 // 获取所有数据
-async function getAllData() {
+async function getAllData(url = '/api/data/all') {
   const useMySQL = await shouldUseMySQL();
   
   if (useMySQL) {
     try {
-      return await MySQLStorage.getAllData();
+      return await MySQLStorage.getAllData(url);
     } catch (error) {
       console.error('从MySQL获取数据失败，回退到IndexedDB:', error);
       // 回退到IndexedDB
@@ -53,12 +53,12 @@ async function getAllData() {
 }
 
 // 获取数据数量
-async function getDataCount() {
+async function getDataCount(url = '/api/data/count') {
   const useMySQL = await shouldUseMySQL();
   
   if (useMySQL) {
     try {
-      return await MySQLStorage.getDataCount();
+      return await MySQLStorage.getDataCount(url);
     } catch (error) {
       console.error('从MySQL获取数据数量失败，回退到IndexedDB:', error);
       // 回退到IndexedDB
@@ -70,12 +70,12 @@ async function getDataCount() {
 }
 
 // 清空所有数据
-async function clearAllData() {
+async function clearAllData(url = '/api/data/clear') {
   const useMySQL = await shouldUseMySQL();
   
   if (useMySQL) {
     try {
-      return await MySQLStorage.clearAllData();
+      return await MySQLStorage.clearAllData(url);
     } catch (error) {
       console.error('清空MySQL数据失败，回退到IndexedDB:', error);
       // 回退到IndexedDB

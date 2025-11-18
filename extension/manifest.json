@@ -22,7 +22,8 @@
         "rules/rules.js",
         "rules/matcher.js",
         "crawler/CrawlerEngine.js",
-        "content.js"
+        "content.js",
+        "popup.js"
       ],
       "run_at": "document_idle"
     }

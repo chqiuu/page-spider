@@ -1,4 +1,6 @@
 // 内容脚本 - 在网页中运行
+console.log('=== Content Script 开始加载 ===', window.location.href);
+
 let isCrawling = false;
 let crawlInterval = null;
 let crawlerEngine = null;
@@ -24,25 +26,66 @@ function initCrawler() {
 }
 
 // 监听来自popup的消息
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'startCrawl') {
-    startCrawl(message.selector, message.delay, message.ruleType);
-    sendResponse({ success: true });
-  } else if (message.type === 'stopCrawl') {
-    stopCrawl();
-    sendResponse({ success: true });
-  } else if (message.type === 'getRuleInfo') {
+console.log('=== 注册消息监听器 ===');
+const messageListener = (message, sender, sendResponse) => {
+  console.log('=== 收到消息 ===', {
+    type: message?.type,
+    message: message,
+    sender: sender,
+    timestamp: new Date().toISOString()
+  });
+  
+  // 处理 ping 消息（用于检查 content script 是否准备好）
+  if (message && message.type === 'ping') {
+    console.log('处理 ping 消息');
+    sendResponse({ success: true, ready: true });
+    return true;
+  }
+  
+  if (message && message.type === 'startCrawl') {
+    console.log('处理 startCrawl 消息', message);
+    try {
+      startCrawl(message.selector, message.delay, message.ruleType);
+      sendResponse({ success: true });
+    } catch (error) {
+      console.error('启动爬取时出错:', error);
+      sendResponse({ success: false, error: error.message });
+    }
+    return true;
+  } else if (message && message.type === 'stopCrawl') {
+    console.log('处理 stopCrawl 消息');
+    try {
+      stopCrawl();
+      sendResponse({ success: true });
+    } catch (error) {
+      console.error('停止爬取时出错:', error);
+      sendResponse({ success: false, error: error.message });
+    }
+    return true;
+  } else if (message && message.type === 'getRuleInfo') {
+    console.log('处理 getRuleInfo 消息');
     // 返回当前规则信息
-    if (crawlerEngine) {
-      sendResponse({ success: true, rule: crawlerEngine.getRuleInfo() });
-    } else {
-      initCrawler();
-      sendResponse({ success: true, rule: crawlerEngine.getRuleInfo() });
+    try {
+      if (crawlerEngine) {
+        sendResponse({ success: true, rule: crawlerEngine.getRuleInfo() });
+      } else {
+        initCrawler();
+        sendResponse({ success: true, rule: crawlerEngine.getRuleInfo() });
+      }
+    } catch (error) {
+      console.error('获取规则信息时出错:', error);
+      sendResponse({ success: false, error: error.message });
     }
     return true;
   }
+  
+  console.warn('收到未知消息类型:', message?.type);
+  // 对于其他消息类型，返回 true 以保持消息通道开放
   return true;
-});
+};
+
+chrome.runtime.onMessage.addListener(messageListener);
+console.log('=== 消息监听器已注册 ===', typeof chrome.runtime.onMessage);
 
 // 开始爬取
 function startCrawl(customSelector, delay, ruleType = 'auto') {

@@ -1,14 +1,33 @@
 // 爬虫引擎类
-const matchRule = (typeof window !== 'undefined' && window.matchRule) 
-  ? window.matchRule 
-  : (typeof self !== 'undefined' && self.matchRule)
-  ? self.matchRule
-  : require('../rules/matcher').matchRule;
+// 动态获取 matchRule 函数，避免加载时序问题
+function getMatchRule() {
+  if (typeof window !== 'undefined' && window.matchRule) {
+    return window.matchRule;
+  } else if (typeof self !== 'undefined' && self.matchRule) {
+    return self.matchRule;
+  } else if (typeof require !== 'undefined') {
+    return require('../rules/matcher').matchRule;
+  } else {
+    console.error('matchRule 未定义，请确保 matcher.js 已加载');
+    // 提供一个默认的 matchRule 函数
+    return function(url) {
+      const RULES = (typeof window !== 'undefined' && window.RULES) 
+        ? window.RULES 
+        : (typeof self !== 'undefined' && self.RULES) ? self.RULES : null;
+      if (RULES && RULES.default) {
+        return RULES.default;
+      }
+      return { name: '默认规则', urlPattern: /.*/, type: 'custom', custom: {} };
+    };
+  }
+}
 
 // 执行爬取
 class CrawlerEngine {
   constructor(url, rule = null) {
     this.url = url;
+    // 在构造函数中动态获取 matchRule
+    const matchRule = getMatchRule();
     this.rule = rule || matchRule(url);
     this.currentPage = 1;
   }
