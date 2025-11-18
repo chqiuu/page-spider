@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>页面爬虫工具</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h1>页面爬虫工具</h1>
+    
+    <div class="section">
+      <h2>当前页面信息</h2>
+      <div id="pageInfo" class="info-box">
+        <p><strong>URL:</strong> <span id="currentUrl">-</span></p>
+        <p><strong>标题:</strong> <span id="pageTitle">-</span></p>
+        <p><strong>匹配规则:</strong> <span id="matchedRule" class="rule-badge">检测中...</span></p>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>爬虫控制</h2>
+      <div class="button-group">
+        <button id="startCrawl" class="btn btn-primary">开始爬取</button>
+        <button id="stopCrawl" class="btn btn-secondary" disabled>停止爬取</button>
+      </div>
+      <div class="status-box">
+        <p>状态: <span id="status">就绪</span></p>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>数据管理</h2>
+      <div class="button-group">
+        <button id="viewData" class="btn btn-info">查看数据</button>
+        <button id="exportData" class="btn btn-success">导出数据</button>
+        <button id="clearData" class="btn btn-danger">清空数据</button>
+      </div>
+      <div class="info-box">
+        <p>数据条数: <span id="dataCount">0</span></p>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>爬取配置</h2>
+      <div class="form-group">
+        <label for="crawlMode">爬取模式:</label>
+        <select id="crawlMode" class="form-select">
+          <option value="auto">自动匹配规则</option>
+          <option value="custom">自定义选择器</option>
+        </select>
+      </div>
+      <div class="form-group" id="selectorGroup">
+        <label for="selector">CSS选择器（自定义模式）:</label>
+        <input type="text" id="selector" placeholder="例如: .content, #main, div.item">
+        <small class="form-hint">仅在自定义模式下使用</small>
+      </div>
+      <div class="form-group">
+        <label for="delay">延迟时间(ms):</label>
+        <input type="number" id="delay" value="0" min="0" max="10000">
+        <small class="form-hint">建议设置2-5秒，避免触发反爬</small>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>数据库配置</h2>
+      <div class="db-status" id="dbStatus">
+        <p>状态: <span id="dbStatusText">未连接</span></p>
+      </div>
+      <div class="form-group">
+        <label for="dbHost">主机:</label>
+        <input type="text" id="dbHost" placeholder="localhost" value="localhost">
+      </div>
+      <div class="form-group">
+        <label for="dbPort">端口:</label>
+        <input type="number" id="dbPort" placeholder="3306" value="3306">
+      </div>
+      <div class="form-group">
+        <label for="dbUser">用户名:</label>
+        <input type="text" id="dbUser" placeholder="root" value="root">
+      </div>
+      <div class="form-group">
+        <label for="dbPassword">密码:</label>
+        <input type="password" id="dbPassword" placeholder="输入密码">
+      </div>
+      <div class="form-group">
+        <label for="dbDatabase">数据库名:</label>
+        <input type="text" id="dbDatabase" placeholder="page_spider" value="page_spider">
+      </div>
+      <div class="button-group">
+        <button id="testDbConnection" class="btn btn-info">测试连接</button>
+        <button id="saveDbConfig" class="btn btn-success">保存配置</button>
+      </div>
+      <div class="form-group">
+        <label>
+          <input type="checkbox" id="useMySQL"> 使用MySQL数据库（取消则使用本地IndexedDB）
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
+
