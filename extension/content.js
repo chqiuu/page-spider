@@ -121,38 +121,238 @@ async function handleStartCrawling() {
     
     isCrawling = true;
     updateControlButtons();
-    updateStatus('正在爬取...', 'crawling');
     
-    // 执行爬取
-    const data = await crawlData();
-    
-    if (data && data.items && data.items.length > 0) {
-      updateStatus(`爬取完成，找到 ${data.items.length} 条数据，正在保存...`, 'crawling');
-      
-      // 保存数据到后端
-      chrome.runtime.sendMessage({
-        action: 'saveData',
-        data: data.items
-      }, (response) => {
-        if (response && response.success) {
-          updateStatus(`成功保存 ${data.items.length} 条数据`, 'success');
-        } else {
-          updateStatus('保存失败: ' + (response?.error || '未知错误'), 'error');
-        }
-        isCrawling = false;
-        updateControlButtons();
-      });
-    } else {
-      updateStatus('未找到任何数据', 'error');
-      isCrawling = false;
-      updateControlButtons();
-    }
+    // 开始循环爬取所有分页
+    await crawlAllPages();
   } catch (error) {
     console.error('爬取失败:', error);
     updateStatus('爬取失败: ' + error.message, 'error');
     isCrawling = false;
     updateControlButtons();
   }
+}
+
+// 循环爬取所有分页
+async function crawlAllPages() {
+  let totalCrawled = 0;
+  let totalSaved = 0;
+  let pageNumber = 1;
+  
+  try {
+    while (isCrawling) {
+      updateStatus(`正在爬取第 ${pageNumber} 页...`, 'crawling');
+      
+      // 等待页面加载完成
+      await waitForPageLoad();
+      
+      // 执行爬取
+      const data = await crawlData();
+      
+      if (data && data.items && data.items.length > 0) {
+        totalCrawled += data.items.length;
+        updateStatus(`第 ${pageNumber} 页爬取完成，找到 ${data.items.length} 条数据，正在保存...`, 'crawling');
+        
+        // 保存数据到后端
+        const saveSuccess = await saveDataToBackend(data.items);
+        
+        if (saveSuccess) {
+          totalSaved += data.items.length;
+          updateStatus(`第 ${pageNumber} 页保存成功，累计: ${totalSaved} 条`, 'success');
+        } else {
+          updateStatus(`第 ${pageNumber} 页保存失败`, 'error');
+        }
+      } else {
+        updateStatus(`第 ${pageNumber} 页未找到任何数据`, 'error');
+      }
+      
+      // 检查是否有下一页
+      const nextPageButton = document.querySelector('div > p.pager > a.next');
+      
+      if (!nextPageButton || !isNextPageAvailable(nextPageButton)) {
+        // 没有下一页，爬取完成
+        updateStatus(`所有分页爬取完成！共爬取 ${totalCrawled} 条，保存 ${totalSaved} 条`, 'success');
+        isCrawling = false;
+        updateControlButtons();
+        break;
+      }
+      
+      // 点击下一页
+      updateStatus(`准备跳转到第 ${pageNumber + 1} 页...`, 'crawling');
+      await clickNextPage(nextPageButton);
+      
+      // 等待页面加载
+      await waitForPageNavigation();
+      
+      pageNumber++;
+    }
+  } catch (error) {
+    console.error('循环爬取失败:', error);
+    updateStatus('爬取失败: ' + error.message, 'error');
+    isCrawling = false;
+    updateControlButtons();
+  }
+}
+
+// 检查下一页按钮是否可用
+function isNextPageAvailable(nextButton) {
+  // 检查按钮是否存在且可见
+  if (!nextButton) {
+    return false;
+  }
+  
+  // 检查按钮是否被禁用
+  if (nextButton.disabled || nextButton.classList.contains('disabled')) {
+    return false;
+  }
+  
+  // 检查按钮是否隐藏
+  const style = window.getComputedStyle(nextButton);
+  if (style.display === 'none' || style.visibility === 'hidden') {
+    return false;
+  }
+  
+  // 检查按钮是否有href属性或onclick事件
+  if (!nextButton.href && !nextButton.onclick) {
+    return false;
+  }
+  
+  return true;
+}
+
+// 点击下一页按钮
+async function clickNextPage(nextButton) {
+  return new Promise((resolve) => {
+    try {
+      // 方法1: 如果按钮有href，直接导航（最可靠）
+      if (nextButton.href && nextButton.href !== window.location.href && !nextButton.href.includes('javascript:')) {
+        window.location.href = nextButton.href;
+        setTimeout(resolve, 200);
+        return;
+      }
+      
+      // 方法2: 触发点击事件
+      // 先尝试触发mousedown和mouseup事件（更接近真实点击）
+      const mouseDownEvent = new MouseEvent('mousedown', {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+        button: 0
+      });
+      
+      const mouseUpEvent = new MouseEvent('mouseup', {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+        button: 0
+      });
+      
+      const clickEvent = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+        button: 0
+      });
+      
+      nextButton.dispatchEvent(mouseDownEvent);
+      setTimeout(() => {
+        nextButton.dispatchEvent(mouseUpEvent);
+        setTimeout(() => {
+          nextButton.dispatchEvent(clickEvent);
+          // 如果按钮有onclick属性，也执行它
+          if (nextButton.onclick) {
+            nextButton.onclick();
+          }
+          // 调用原生click方法
+          nextButton.click();
+          setTimeout(resolve, 2000);
+        }, 50);
+      }, 50);
+    } catch (error) {
+      console.error('点击下一页失败:', error);
+      // 如果所有方法都失败，尝试直接调用click方法
+      try {
+        nextButton.click();
+      } catch (e) {
+        console.error('直接调用click方法也失败:', e);
+      }
+      setTimeout(resolve, 2000);
+    }
+  });
+}
+
+// 等待页面导航完成
+async function waitForPageNavigation() {
+  return new Promise((resolve) => {
+    const startUrl = window.location.href;
+    
+    // 记录当前页面的第一个列表项内容，用于检测内容是否更新
+    const firstListItem = document.querySelector('.vT-srch-result-list ul li');
+    const startContent = firstListItem ? firstListItem.textContent.trim() : '';
+    
+    let checkCount = 0;
+    const maxChecks = 100; // 最多等待10秒（100 * 100ms）
+    
+    const checkInterval = setInterval(() => {
+      checkCount++;
+      
+      // 检查URL是否改变（传统页面跳转）
+      if (window.location.href !== startUrl) {
+        clearInterval(checkInterval);
+        // URL已改变，等待页面加载完成
+        waitForPageLoad().then(() => {
+          // 额外等待确保DOM完全更新
+          setTimeout(resolve, 1000);
+        });
+        return;
+      }
+      
+      // 检查列表内容是否已更新（AJAX加载）
+      const currentFirstItem = document.querySelector('.vT-srch-result-list ul li');
+      const currentContent = currentFirstItem ? currentFirstItem.textContent.trim() : '';
+      
+      // 如果第一个列表项的内容改变了，说明新页面已加载
+      if (startContent && currentContent && currentContent !== startContent) {
+        clearInterval(checkInterval);
+        // 额外等待确保DOM完全更新
+        setTimeout(resolve, 1000);
+        return;
+      }
+      
+      // 检查列表项数量是否变化（作为备用检测方法）
+      const listItems = document.querySelectorAll('.vT-srch-result-list ul li');
+      if (listItems.length > 0) {
+        // 如果列表项存在，等待一小段时间后检查内容是否稳定
+        if (checkCount > 10) { // 至少等待1秒
+          clearInterval(checkInterval);
+          setTimeout(resolve, 1000);
+          return;
+        }
+      }
+      
+      // 超时保护
+      if (checkCount >= maxChecks) {
+        clearInterval(checkInterval);
+        console.warn('等待页面导航超时，继续执行');
+        resolve();
+      }
+    }, 100);
+  });
+}
+
+// 保存数据到后端（Promise版本）
+function saveDataToBackend(items) {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({
+      action: 'saveData',
+      data: items
+    }, (response) => {
+      if (response && response.success) {
+        resolve(true);
+      } else {
+        resolve(false);
+      }
+    });
+  });
 }
 
 // 处理停止爬取
