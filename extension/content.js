@@ -1,7 +1,17 @@
 // Content Script - 用于在目标网页中执行爬取逻辑
+// 注意：规则文件需要在manifest.json中按顺序加载
 
 let isCrawling = false;
 let controlPanel = null;
+let currentRule = null; // 当前页面对应的规则
+
+// 获取当前页面的规则
+function getCurrentRule() {
+  if (!currentRule && typeof window.siteRuleManager !== 'undefined') {
+    currentRule = window.siteRuleManager.getRuleForUrl(window.location.href);
+  }
+  return currentRule;
+}
 
 // 初始化浮动控制面板
 function initControlPanel() {
@@ -72,7 +82,15 @@ function initControlPanel() {
   const status = document.createElement('div');
   status.id = 'page-spider-status';
   status.className = 'page-spider-control-status';
-  status.textContent = '就绪';
+  
+  // 检查是否支持当前页面
+  const rule = getCurrentRule();
+  if (rule) {
+    status.textContent = `就绪 (${rule.name})`;
+  } else {
+    status.textContent = '当前页面不支持';
+    startBtn.disabled = true;
+  }
   
   // 组装面板
   controlPanel.appendChild(header);
@@ -92,7 +110,8 @@ function updateControlButtons() {
   const stopBtn = document.getElementById('page-spider-stop-btn');
   
   if (startBtn && stopBtn) {
-    startBtn.disabled = isCrawling;
+    const rule = getCurrentRule();
+    startBtn.disabled = isCrawling || !rule;
     stopBtn.disabled = !isCrawling;
   }
 }
@@ -113,9 +132,10 @@ async function handleStartCrawling() {
   }
   
   try {
-    // 检查是否是目标页面
-    if (window.location.hostname !== 'search.ccgp.gov.cn') {
-      updateStatus('请打开目标页面: search.ccgp.gov.cn', 'error');
+    // 获取当前页面的规则
+    const rule = getCurrentRule();
+    if (!rule) {
+      updateStatus('当前页面不支持爬取', 'error');
       return;
     }
     
@@ -123,7 +143,7 @@ async function handleStartCrawling() {
     updateControlButtons();
     
     // 开始循环爬取所有分页
-    await crawlAllPages();
+    await crawlAllPages(rule);
   } catch (error) {
     console.error('爬取失败:', error);
     updateStatus('爬取失败: ' + error.message, 'error');
@@ -133,7 +153,7 @@ async function handleStartCrawling() {
 }
 
 // 循环爬取所有分页
-async function crawlAllPages() {
+async function crawlAllPages(rule) {
   let totalCrawled = 0;
   let totalSaved = 0;
   let pageNumber = 1;
@@ -143,10 +163,10 @@ async function crawlAllPages() {
       updateStatus(`正在爬取第 ${pageNumber} 页...`, 'crawling');
       
       // 等待页面加载完成
-      await waitForPageLoad();
+      await rule.waitForPageLoad();
       
       // 执行爬取
-      const data = await crawlData();
+      const data = await crawlData(rule);
       
       if (data && data.items && data.items.length > 0) {
         totalCrawled += data.items.length;
@@ -166,9 +186,9 @@ async function crawlAllPages() {
       }
       
       // 检查是否有下一页
-      const nextPageButton = document.querySelector('div > p.pager > a.next');
+      const nextPageButton = document.querySelector(rule.getNextPageButtonSelector());
       
-      if (!nextPageButton || !isNextPageAvailable(nextPageButton)) {
+      if (!nextPageButton || !rule.isNextPageAvailable(nextPageButton)) {
         // 没有下一页，爬取完成
         updateStatus(`所有分页爬取完成！共爬取 ${totalCrawled} 条，保存 ${totalSaved} 条`, 'success');
         isCrawling = false;
@@ -178,10 +198,10 @@ async function crawlAllPages() {
       
       // 点击下一页
       updateStatus(`准备跳转到第 ${pageNumber + 1} 页...`, 'crawling');
-      await clickNextPage(nextPageButton);
+      await rule.clickNextPage(nextPageButton);
       
       // 等待页面加载
-      await waitForPageNavigation();
+      await rule.waitForPageNavigation();
       
       pageNumber++;
     }
@@ -191,207 +211,6 @@ async function crawlAllPages() {
     isCrawling = false;
     updateControlButtons();
   }
-}
-
-// 检查下一页按钮是否可用
-function isNextPageAvailable(nextButton) {
-  // 检查按钮是否存在且可见
-  if (!nextButton) {
-    return false;
-  }
-  
-  // 检查按钮是否被禁用
-  if (nextButton.disabled || nextButton.classList.contains('disabled')) {
-    return false;
-  }
-  
-  // 检查按钮是否隐藏
-  const style = window.getComputedStyle(nextButton);
-  if (style.display === 'none' || style.visibility === 'hidden') {
-    return false;
-  }
-  
-  // 检查按钮是否有href属性或onclick事件
-  if (!nextButton.href && !nextButton.onclick) {
-    return false;
-  }
-  
-  return true;
-}
-
-// 点击下一页按钮
-async function clickNextPage(nextButton) {
-  return new Promise((resolve) => {
-    try {
-      // 获取按钮的href属性值（使用getAttribute避免浏览器自动解析）
-      const hrefAttr = nextButton.getAttribute('href');
-      const href = nextButton.href;
-      const isJavaScriptLink = (hrefAttr && hrefAttr.trim().toLowerCase().startsWith('javascript:')) ||
-                               (href && href.trim().toLowerCase().startsWith('javascript:'));
-
-      // 方法1: 如果是普通HTTP链接，直接导航（最可靠且安全）
-      if (href && !isJavaScriptLink && href !== window.location.href && 
-          (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('/'))) {
-        // 处理相对路径
-        if (href.startsWith('/')) {
-          window.location.href = new URL(href, window.location.origin).href;
-        } else {
-          window.location.href = href;
-        }
-        setTimeout(resolve, 200);
-        return;
-      }
-      
-      // 方法2: 对于javascript:链接或其他情况，使用事件触发（避免CSP错误）
-      // 如果href是javascript:链接，临时移除它以避免CSP错误
-      let originalHref = null;
-      let isHrefRemoved = false;
-      
-      if (isJavaScriptLink && hrefAttr) {
-        originalHref = hrefAttr;
-        nextButton.removeAttribute('href');
-        isHrefRemoved = true;
-      }
-      
-      // 先尝试触发mousedown和mouseup事件（更接近真实点击）
-      const mouseDownEvent = new MouseEvent('mousedown', {
-        bubbles: true,
-        cancelable: true,
-        view: window,
-        button: 0
-      });
-      
-      const mouseUpEvent = new MouseEvent('mouseup', {
-        bubbles: true,
-        cancelable: true,
-        view: window,
-        button: 0
-      });
-      
-      const clickEvent = new MouseEvent('click', {
-        bubbles: true,
-        cancelable: true,
-        view: window,
-        button: 0
-      });
-      
-      // 触发事件序列
-      nextButton.dispatchEvent(mouseDownEvent);
-      setTimeout(() => {
-        nextButton.dispatchEvent(mouseUpEvent);
-        setTimeout(() => {
-          // 先触发click事件
-          nextButton.dispatchEvent(clickEvent);
-          
-          // 对于javascript:链接，不调用click()方法以避免CSP错误
-          // 只触发事件，让事件监听器处理
-          if (!isJavaScriptLink) {
-            // 对于普通链接，可以安全地调用click方法
-            try {
-              nextButton.click();
-            } catch (clickError) {
-              console.warn('调用click方法失败:', clickError);
-            }
-          } else {
-            // 对于javascript:链接，只依赖事件触发
-            // 如果按钮有onclick事件监听器，事件触发应该已经调用了它
-            console.log('使用事件触发方式处理javascript:链接，避免CSP错误');
-          }
-          
-          // 恢复原始href（如果之前移除了）
-          if (isHrefRemoved && originalHref) {
-            nextButton.setAttribute('href', originalHref);
-            isHrefRemoved = false;
-          }
-          
-          setTimeout(resolve, 2000);
-        }, 50);
-      }, 50);
-    } catch (error) {
-      console.error('点击下一页失败:', error);
-      // 最后的备用方案：检查是否是javascript:链接，如果是则只触发事件
-      const hrefAttr = nextButton.getAttribute('href');
-      const isJavaScriptLink = (hrefAttr && hrefAttr.trim().toLowerCase().startsWith('javascript:'));
-      
-      if (!isJavaScriptLink) {
-        // 对于普通链接，可以尝试直接调用click方法
-        try {
-          nextButton.click();
-        } catch (e) {
-          console.error('直接调用click方法也失败:', e);
-        }
-      } else {
-        // 对于javascript:链接，只触发事件避免CSP错误
-        const clickEvent = new MouseEvent('click', {
-          bubbles: true,
-          cancelable: true,
-          view: window,
-          button: 0
-        });
-        nextButton.dispatchEvent(clickEvent);
-      }
-      setTimeout(resolve, 2000);
-    }
-  });
-}
-
-// 等待页面导航完成
-async function waitForPageNavigation() {
-  return new Promise((resolve) => {
-    const startUrl = window.location.href;
-    
-    // 记录当前页面的第一个列表项内容，用于检测内容是否更新
-    const firstListItem = document.querySelector('.vT-srch-result-list ul li');
-    const startContent = firstListItem ? firstListItem.textContent.trim() : '';
-    
-    let checkCount = 0;
-    const maxChecks = 100; // 最多等待10秒（100 * 100ms）
-    
-    const checkInterval = setInterval(() => {
-      checkCount++;
-      
-      // 检查URL是否改变（传统页面跳转）
-      if (window.location.href !== startUrl) {
-        clearInterval(checkInterval);
-        // URL已改变，等待页面加载完成
-        waitForPageLoad().then(() => {
-          // 额外等待确保DOM完全更新
-          setTimeout(resolve, 1000);
-        });
-        return;
-      }
-      
-      // 检查列表内容是否已更新（AJAX加载）
-      const currentFirstItem = document.querySelector('.vT-srch-result-list ul li');
-      const currentContent = currentFirstItem ? currentFirstItem.textContent.trim() : '';
-      
-      // 如果第一个列表项的内容改变了，说明新页面已加载
-      if (startContent && currentContent && currentContent !== startContent) {
-        clearInterval(checkInterval);
-        // 额外等待确保DOM完全更新
-        setTimeout(resolve, 1000);
-        return;
-      }
-      
-      // 检查列表项数量是否变化（作为备用检测方法）
-      const listItems = document.querySelectorAll('.vT-srch-result-list ul li');
-      if (listItems.length > 0) {
-        // 如果列表项存在，等待一小段时间后检查内容是否稳定
-        if (checkCount > 10) { // 至少等待1秒
-          clearInterval(checkInterval);
-          setTimeout(resolve, 1000);
-          return;
-        }
-      }
-      
-      // 超时保护
-      if (checkCount >= maxChecks) {
-        clearInterval(checkInterval);
-        console.warn('等待页面导航超时，继续执行');
-        resolve();
-      }
-    }, 100);
-  });
 }
 
 // 保存数据到后端（Promise版本）
@@ -420,9 +239,15 @@ function handleStopCrawling() {
 // 监听来自popup或background的消息
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'crawl') {
-    crawlData()
+    const rule = getCurrentRule();
+    if (!rule) {
+      sendResponse({ success: false, error: '当前页面不支持爬取' });
+      return true;
+    }
+    
+    crawlData(rule)
       .then(data => {
-        console.log(`crawlData success`,data);
+        console.log(`crawlData success`, data);
         sendResponse({ success: true, data: data });
       })
       .catch(error => {
@@ -432,10 +257,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
   
   if (request.action === 'getPageInfo') {
+    const rule = getCurrentRule();
     const pageInfo = {
       url: window.location.href,
       title: document.title,
-      isTargetPage: window.location.hostname === 'search.ccgp.gov.cn'
+      isTargetPage: rule !== null,
+      ruleName: rule ? rule.name : null
     };
     sendResponse({ success: true, pageInfo: pageInfo });
     return true;
@@ -449,16 +276,35 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 // 爬取页面数据
-async function crawlData() {
+async function crawlData(rule) {
   try {
     // 等待页面加载完成
-    await waitForPageLoad();
+    await rule.waitForPageLoad();
     
-    // 提取列表项
-    const elements = document.querySelectorAll('.vT-srch-result-list ul li');
     let items = [];
+    
+    // 优先尝试从 JSON 数据提取（适用于 Vue 等动态加载的网站）
+    if (typeof rule.extractItemsFromJson === 'function' && rule.ajaxResponseData) {
+      console.log('从 JSON 数据提取列表项...');
+      items = rule.extractItemsFromJson(rule.ajaxResponseData);
+      
+      if (items.length > 0) {
+        return {
+          items: items,
+          total: items.length,
+          pageUrl: window.location.href,
+          crawlTime: new Date().toISOString(),
+          ruleName: rule.name
+        };
+      }
+    }
+    
+    // 降级到 DOM 提取方式
+    const selector = rule.getListItemSelector();
+    const elements = document.querySelectorAll(selector);
+    
     for (const element of elements) {
-      let item = extractItemData(element)
+      let item = rule.extractItemData(element);
       if (item) {
         items.push(item);
       }
@@ -472,7 +318,8 @@ async function crawlData() {
       items: items,
       total: items.length,
       pageUrl: window.location.href,
-      crawlTime: new Date().toISOString()
+      crawlTime: new Date().toISOString(),
+      ruleName: rule.name
     };
   } catch (error) {
     console.error('爬取数据失败:', error);
@@ -480,82 +327,22 @@ async function crawlData() {
   }
 }
 
-// 等待页面加载
-function waitForPageLoad() {
-  return new Promise((resolve) => {
-    if (document.readyState === 'complete') {
-      resolve();
-    } else {
-      window.addEventListener('load', resolve);
-      // 超时保护
-      setTimeout(resolve, 5000);
-    }
-  });
-}
-
-// 提取单个列表项的数据
-function extractItemData(element) {
-  try {
-    const aElement = element.querySelector('a');
-    if (!aElement) return null;
-    
-    // 尝试多种可能的字段位置
-    const title = aElement?.textContent?.trim() || '';
-    let link = aElement.href;
-    if (link && !link.startsWith('http')) {
-      link = new URL(link, window.location.origin).href;
-    }
-    let content = element.querySelector('span')?.textContent?.trim() || '';
-    if (!content) return null;
-    
-    const tenderId = link.replace("http://", "").replace("https://", "").replace("www.ccgp.gov.cn/", "").replace(".html", "").replace(".htm", "").replace("/", "_");
-    let releaseTimeStr = "";
-    let provinceName = "";
-    let projectDirectoryName = "";
-    let buyerName = "";
-    let agentName = "";
-    let afficheType = "";
-    content = content.replaceAll('|', '');
-    console.log(`content [${content}]`);
-    let strs = content.split(/\n/);
-    console.log(`strs`,strs);
-    if (strs.length > 7) {
-      releaseTimeStr = strs[0].trim();
-      buyerName = strs[1].trim().replaceAll('采购人：', '');
-      agentName = strs[2].trim().replaceAll('代理机构：', '');
-      afficheType = strs[7].trim();
-      if (strs.length > 10) {
-          provinceName = strs[10].trim();
-      }
-      if (strs.length > 11) {
-          projectDirectoryName = strs[11].trim();
-      }
-      return {
-        tenderId: tenderId,
-        title: title,
-        url: link,
-        releaseTime: releaseTimeStr,
-        buyerName: buyerName,
-        agentName: agentName,
-        provinceName: provinceName,
-        afficheType: afficheType,
-        projectDirectoryName: projectDirectoryName,
-        crawledAt: new Date().toISOString()
-      };
-    }
-  } catch (error) {
-    console.error(`提取第${index}项失败:`, error);
-  }
-  return null;
-}
-
 // 页面加载完成后，初始化控制面板并向background发送就绪消息
 function init() {
+  // 重新获取规则（页面可能已改变）
+  currentRule = null;
+  const rule = getCurrentRule();
+  
   // 初始化浮动控制面板
   initControlPanel();
   
   // 向background发送就绪消息
-  chrome.runtime.sendMessage({ action: 'contentReady', url: window.location.href });
+  chrome.runtime.sendMessage({ 
+    action: 'contentReady', 
+    url: window.location.href,
+    ruleName: rule ? rule.name : null,
+    supported: rule !== null
+  });
 }
 
 if (document.readyState === 'loading') {
@@ -563,4 +350,3 @@ if (document.readyState === 'loading') {
 } else {
   init();
 }
-

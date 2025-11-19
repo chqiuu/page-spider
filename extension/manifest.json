@@ -10,6 +10,7 @@
   ],
   "host_permissions": [
     "https://search.ccgp.gov.cn/*",
+    "https://www.ccgp-sichuan.gov.cn/*",
     "http://localhost:3000/*"
   ],
   "background": {
@@ -25,8 +26,17 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://search.ccgp.gov.cn/*"],
-      "js": ["content.js"],
+      "matches": [
+        "https://search.ccgp.gov.cn/*",
+        "https://www.ccgp-sichuan.gov.cn/*"
+      ],
+      "js": [
+        "siteRules/BaseSiteRule.js",
+        "siteRules/CcgpGovRule.js",
+        "siteRules/CcgpSichuanRule.js",
+        "siteRules/index.js",
+        "content.js"
+      ],
       "css": ["content.css"],
       "run_at": "document_idle"
     }
