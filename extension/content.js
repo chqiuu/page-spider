@@ -521,8 +521,8 @@ function extractItemData(element) {
     console.log(`strs`,strs);
     if (strs.length > 7) {
       releaseTimeStr = strs[0].trim();
-      buyerName = strs[1].trim();
-      agentName = strs[2].trim();
+      buyerName = strs[1].trim().replaceAll('采购人：', '');
+      agentName = strs[2].trim().replaceAll('代理机构：', '');
       afficheType = strs[7].trim();
       if (strs.length > 10) {
           provinceName = strs[10].trim();
