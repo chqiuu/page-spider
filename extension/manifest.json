@@ -2,32 +2,19 @@
   "manifest_version": 3,
   "name": "页面爬虫工具",
   "version": "1.0.0",
-  "description": "通过浏览器扩展方式实现网页爬虫，支持本地数据库存储",
+  "description": "一个用于爬取指定网站数据的浏览器扩展工具",
   "permissions": [
-    "storage",
     "activeTab",
-    "scripting",
-    "tabs"
+    "storage",
+    "scripting"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "https://search.ccgp.gov.cn/*",
+    "http://localhost:3000/*"
   ],
   "background": {
     "service_worker": "background.js"
   },
-  "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "js": [
-        "rules/rules.js",
-        "rules/matcher.js",
-        "crawler/CrawlerEngine.js",
-        "content.js",
-        "popup.js"
-      ],
-      "run_at": "document_idle"
-    }
-  ],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -36,6 +23,13 @@
       "128": "icons/icon128.png"
     }
   },
+  "content_scripts": [
+    {
+      "matches": ["https://search.ccgp.gov.cn/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

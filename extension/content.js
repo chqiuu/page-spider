@@ -1,195 +1,322 @@
-// 内容脚本 - 在网页中运行
-console.log('=== Content Script 开始加载 ===', window.location.href);
+// Content Script - 用于在目标网页中执行爬取逻辑
 
-let isCrawling = false;
-let crawlInterval = null;
-let crawlerEngine = null;
-let currentRule = null;
-
-// 初始化爬虫引擎
-function initCrawler() {
-  const url = window.location.href;
-  currentRule = matchRule(url);
-  crawlerEngine = new CrawlerEngine(url, currentRule);
+// 监听来自popup或background的消息
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'crawl') {
+    crawlData()
+      .then(data => {
+        sendResponse({ success: true, data: data });
+      })
+      .catch(error => {
+        sendResponse({ success: false, error: error.message });
+      });
+    return true; // 保持消息通道开放以支持异步响应
+  }
   
-  // 通知popup当前规则
-  chrome.runtime.sendMessage({
-    type: 'ruleDetected',
-    rule: {
-      name: currentRule.name,
-      type: currentRule.type,
-      url: url
-    }
-  });
-  
-  console.log('已匹配规则:', currentRule.name);
-}
-
-// 监听来自popup的消息
-console.log('=== 注册消息监听器 ===');
-const messageListener = (message, sender, sendResponse) => {
-  console.log('=== 收到消息 ===', {
-    type: message?.type,
-    message: message,
-    sender: sender,
-    timestamp: new Date().toISOString()
-  });
-  
-  // 处理 ping 消息（用于检查 content script 是否准备好）
-  if (message && message.type === 'ping') {
-    console.log('处理 ping 消息');
-    sendResponse({ success: true, ready: true });
+  if (request.action === 'getPageInfo') {
+    const pageInfo = {
+      url: window.location.href,
+      title: document.title,
+      isTargetPage: window.location.hostname === 'search.ccgp.gov.cn'
+    };
+    sendResponse({ success: true, pageInfo: pageInfo });
     return true;
   }
-  
-  if (message && message.type === 'startCrawl') {
-    console.log('处理 startCrawl 消息', message);
-    try {
-      startCrawl(message.selector, message.delay, message.ruleType);
-      sendResponse({ success: true });
-    } catch (error) {
-      console.error('启动爬取时出错:', error);
-      sendResponse({ success: false, error: error.message });
-    }
-    return true;
-  } else if (message && message.type === 'stopCrawl') {
-    console.log('处理 stopCrawl 消息');
-    try {
-      stopCrawl();
-      sendResponse({ success: true });
-    } catch (error) {
-      console.error('停止爬取时出错:', error);
-      sendResponse({ success: false, error: error.message });
-    }
-    return true;
-  } else if (message && message.type === 'getRuleInfo') {
-    console.log('处理 getRuleInfo 消息');
-    // 返回当前规则信息
-    try {
-      if (crawlerEngine) {
-        sendResponse({ success: true, rule: crawlerEngine.getRuleInfo() });
-      } else {
-        initCrawler();
-        sendResponse({ success: true, rule: crawlerEngine.getRuleInfo() });
-      }
-    } catch (error) {
-      console.error('获取规则信息时出错:', error);
-      sendResponse({ success: false, error: error.message });
-    }
-    return true;
-  }
-  
-  console.warn('收到未知消息类型:', message?.type);
-  // 对于其他消息类型，返回 true 以保持消息通道开放
-  return true;
-};
+});
 
-chrome.runtime.onMessage.addListener(messageListener);
-console.log('=== 消息监听器已注册 ===', typeof chrome.runtime.onMessage);
-
-// 开始爬取
-function startCrawl(customSelector, delay, ruleType = 'auto') {
-  if (isCrawling) {
-    return;
-  }
-
-  // 初始化引擎（如果还没有）
-  if (!crawlerEngine) {
-    initCrawler();
-  }
-
-  isCrawling = true;
-  chrome.runtime.sendMessage({ type: 'crawlStatus', status: 'running' });
-
-  // 立即执行一次
-  crawlData(customSelector, ruleType);
-
-  // 设置定时爬取
-  if (delay > 0) {
-    crawlInterval = setInterval(() => {
-      if (isCrawling) {
-        crawlData(customSelector, ruleType);
-      }
-    }, delay);
-  }
-}
-
-// 停止爬取
-function stopCrawl() {
-  isCrawling = false;
-  if (crawlInterval) {
-    clearInterval(crawlInterval);
-    crawlInterval = null;
-  }
-  chrome.runtime.sendMessage({ type: 'crawlStatus', status: 'stopped' });
-}
-
-// 爬取数据
-async function crawlData(customSelector = null, ruleType = 'auto') {
+// 爬取页面数据
+async function crawlData() {
   try {
-    let items = [];
-    let ruleName = '默认规则';
+    // 等待页面加载完成
+    await waitForPageLoad();
     
-    if (ruleType === 'auto' && crawlerEngine) {
-      // 使用自动匹配的规则
-      items = crawlerEngine.crawlList(customSelector);
-      ruleName = crawlerEngine.rule.name;
-    } else if (customSelector) {
-      // 使用自定义选择器
-      const elements = document.querySelectorAll(customSelector);
-      elements.forEach((element, index) => {
-        const text = element.textContent?.trim() || '';
-        const html = element.innerHTML || '';
-        
-        if (text) {
-          items.push({
-            index: index,
-            text: text,
-            html: html,
-            selector: customSelector
-          });
-        }
-      });
-      ruleName = '自定义规则';
-    } else {
-      throw new Error('请提供CSS选择器或使用自动规则');
+    // 查找列表容器
+    const listContainer = document.querySelector('.vT-srch-result ul li') || document.body;
+    
+    if (!listContainer) {
+      throw new Error('未找到列表容器');
     }
-
-    if (items.length > 0) {
-      // 发送数据到background script保存
-      chrome.runtime.sendMessage({
-        type: 'saveData',
-        data: {
-          url: window.location.href,
-          title: document.title,
-          rule: ruleName,
-          selector: customSelector || (crawlerEngine?.rule?.list?.itemSelector) || '',
-          items: items,
-          timestamp: Date.now()
-        }
-      });
-      
-      console.log(`已爬取 ${items.length} 条数据，规则: ${ruleName}`);
-    } else {
-      console.warn('未找到数据，请检查选择器或规则配置');
+    
+    // 提取列表项
+    const items = extractListItems(listContainer);
+    
+    if (items.length === 0) {
+      throw new Error('未找到任何数据项');
     }
+    
+    return {
+      items: items,
+      total: items.length,
+      pageUrl: window.location.href,
+      crawlTime: new Date().toISOString()
+    };
   } catch (error) {
     console.error('爬取数据失败:', error);
-    chrome.runtime.sendMessage({
-      type: 'crawlError',
-      error: error.message
-    });
+    throw error;
   }
 }
 
-// 页面加载完成后的初始化
+// 等待页面加载
+function waitForPageLoad() {
+  return new Promise((resolve) => {
+    if (document.readyState === 'complete') {
+      resolve();
+    } else {
+      window.addEventListener('load', resolve);
+      // 超时保护
+      setTimeout(resolve, 5000);
+    }
+  });
+}
+
+// 提取列表项数据
+function extractListItems(container) {
+  const items = [];
+  
+  // 尝试多种选择器来找到列表项（针对search.ccgp.gov.cn网站）
+  const selectors = [
+    '.vT-srch-result ul li'
+  ];
+  
+  let rows = [];
+  for (const selector of selectors) {
+    rows = container.querySelectorAll(selector);
+    if (rows.length > 0) {
+      console.log(`使用选择器找到 ${rows.length} 行: ${selector}`);
+      break;
+    }
+  }
+  
+  // 如果没有找到，尝试查找所有包含链接的tr元素
+  if (rows.length === 0) {
+    rows = container.querySelectorAll('tr');
+    console.log(`使用通用选择器找到 ${rows.length} 行`);
+  }
+  
+  // 过滤掉表头和空行
+  const dataRows = Array.from(rows).filter(row => {
+    // 跳过表头
+    if (row.querySelector('th')) {
+      return false;
+    }
+    // 跳过没有td的行
+    if (row.querySelectorAll('td').length === 0) {
+      return false;
+    }
+    // 跳过完全空白的行
+    const text = row.textContent.trim();
+    if (!text || text.length < 5) {
+      return false;
+    }
+    return true;
+  });
+  
+  console.log(`过滤后剩余 ${dataRows.length} 行有效数据`);
+  
+  dataRows.forEach((row, index) => {
+    try {
+      const item = extractItemData(row);
+      if (item && item.title && item.title.length > 0) {
+        items.push(item);
+      }
+    } catch (error) {
+      console.warn(`提取第${index + 1}项数据失败:`, error);
+    }
+  });
+  
+  return items;
+}
+
+// 提取单个列表项的数据
+function extractItemData(row) {
+  const cells = row.querySelectorAll('td');
+  if (cells.length === 0) {
+    return null;
+  }
+  
+  // 尝试提取标题和链接
+  let title = '';
+  let url = '';
+  let releaseTime = '';
+  let provinceName = '';
+  let districtName = '';
+  let projectPurchaseWay = '';
+  let openTenderCode = '';
+  let budget = '';
+  let projectDirectoryName = '';
+  let buyerName = '';
+  let agentName = '';
+  let afficheType = '';
+  let expireTime = '';
+  
+  // 查找标题链接（通常在第一个或第二个td中）
+  for (let i = 0; i < Math.min(cells.length, 3); i++) {
+    const link = cells[i].querySelector('a');
+    if (link) {
+      title = link.textContent.trim();
+      // 处理href
+      url = link.href;
+      // 如果没有href，尝试从onclick中提取
+      if (!url || url === '#' || url === 'javascript:void(0)') {
+        const onclick = link.getAttribute('onclick');
+        if (onclick) {
+          const match = onclick.match(/['"]([^'"]+)['"]/);
+          if (match) {
+            url = match[1];
+          }
+        }
+      }
+      // 处理相对URL
+      if (url && !url.startsWith('http')) {
+        try {
+          url = new URL(url, window.location.origin).href;
+        } catch (e) {
+          // 如果URL无效，尝试拼接
+          if (url.startsWith('/')) {
+            url = window.location.origin + url;
+          } else {
+            url = window.location.origin + '/' + url;
+          }
+        }
+      }
+      break;
+    }
+  }
+  
+  // 如果没有找到链接，尝试从文本中提取标题
+  if (!title) {
+    title = cells[0]?.textContent.trim() || '';
+    // 清理标题（移除多余空白）
+    title = title.replace(/\s+/g, ' ').trim();
+  }
+  
+  // 提取发布时间（支持多种日期格式）
+  const datePatterns = [
+    /\d{4}[-/年]\d{1,2}[-/月]\d{1,2}[日]?/,
+    /\d{4}[-/]\d{1,2}[-/]\d{1,2}/,
+    /\d{4}\.\d{1,2}\.\d{1,2}/
+  ];
+  
+  for (let i = 0; i < cells.length; i++) {
+    const text = cells[i].textContent.trim();
+    for (const pattern of datePatterns) {
+      if (pattern.test(text) && !releaseTime) {
+        releaseTime = text.match(pattern)[0];
+        // 标准化日期格式：YYYY-MM-DD
+        releaseTime = releaseTime
+          .replace(/[年月日]/g, '-')
+          .replace(/\./g, '-')
+          .replace(/\//g, '-');
+        // 确保格式正确
+        const parts = releaseTime.split('-');
+        if (parts.length === 3) {
+          const year = parts[0];
+          const month = parts[1].padStart(2, '0');
+          const day = parts[2].padStart(2, '0');
+          releaseTime = `${year}-${month}-${day}`;
+        }
+        break;
+      }
+    }
+    if (releaseTime) break;
+  }
+  
+  // 尝试从各个单元格提取其他信息
+  // 根据实际页面结构调整这些提取逻辑
+  cells.forEach((cell, index) => {
+    const text = cell.textContent.trim();
+    if (!text) return;
+    
+    // 省份/地区（通常包含"省"、"市"、"自治区"等）
+    if (!provinceName && /省|市|自治区|特别行政区/.test(text) && text.length < 20) {
+      provinceName = text;
+    }
+    
+    // 区县（通常包含"区"、"县"、"市"等，且长度较短）
+    if (!districtName && /区|县|市/.test(text) && text.length < 15 && !provinceName) {
+      districtName = text;
+    }
+    
+    // 项目编号（通常包含字母和数字，长度6-50）
+    if (!openTenderCode && /^[A-Za-z0-9\-]{6,50}$/.test(text)) {
+      openTenderCode = text;
+    }
+    
+    // 预算金额（通常包含"元"、"万"、"亿"等）
+    if (!budget && /[\d.,]+[万亿]?元/.test(text)) {
+      budget = text;
+    }
+    
+    // 采购人（长度适中，不包含特殊符号）
+    if (!buyerName && text.length > 2 && text.length < 50 && !/http|www|@/.test(text)) {
+      buyerName = text;
+    }
+    
+    // 代理机构
+    if (!agentName && text.length > 2 && text.length < 50 && !/http|www|@/.test(text) && text !== buyerName) {
+      agentName = text;
+    }
+    
+    // 招标方式
+    if (!projectPurchaseWay && /公开|邀请|竞争|单一|询价/.test(text) && text.length < 20) {
+      projectPurchaseWay = text;
+    }
+    
+    // 公告类型
+    if (!afficheType && /公告|通知|公示/.test(text) && text.length < 30) {
+      afficheType = text;
+    }
+  });
+  
+  // 生成唯一ID（基于URL或标题）
+  const tenderId = generateTenderId(url, title);
+  
+  return {
+    tender_id: tenderId,
+    flag: 0,
+    title: title,
+    release_time: releaseTime || null,
+    url: url || '',
+    province_name: provinceName || '',
+    district_name: districtName || '',
+    project_purchase_way: projectPurchaseWay || '',
+    open_tender_code: openTenderCode || '',
+    budget: budget || '',
+    project_directory_name: projectDirectoryName || '',
+    buyer_name: buyerName || '',
+    agent_name: agentName || '',
+    affiche_type: afficheType || '',
+    expire_time: expireTime || null
+  };
+}
+
+// 生成唯一ID
+function generateTenderId(url, title) {
+  if (url) {
+    // 从URL中提取ID
+    const match = url.match(/[?&]id=([^&]+)/) || url.match(/\/(\d+)/);
+    if (match) {
+      return match[1];
+    }
+  }
+  
+  // 使用标题和URL生成hash
+  const str = (url || '') + (title || '');
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return 'tender_' + Math.abs(hash).toString(36);
+}
+
+// 页面加载完成后，向background发送就绪消息
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
-    console.log('页面爬虫内容脚本已加载');
-    initCrawler();
+    chrome.runtime.sendMessage({ action: 'contentReady', url: window.location.href });
   });
 } else {
-  console.log('页面爬虫内容脚本已加载');
-  initCrawler();
+  chrome.runtime.sendMessage({ action: 'contentReady', url: window.location.href });
 }
 

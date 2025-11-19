@@ -11,7 +11,6 @@ const { initTables } = require('./utils/initTables');
 
 // 引入路由模块
 const dbRoutes = require('./routes/dbRoutes');
-const dataRoutes = require('./routes/dataRoutes');
 const tenderRoutes = require('./routes/tenderRoutes');
 
 // 中间件
@@ -29,7 +28,6 @@ app.get('/.well-known/appspecific/com.chrome.devtools.json', (req, res) => {
 
 // 注册路由
 app.use('/api/db', dbRoutes);
-app.use('/api/data', dataRoutes);
 app.use('/api/tender', tenderRoutes);
 
 // 健康检查
