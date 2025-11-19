@@ -60,11 +60,12 @@ class BaseModel {
   async replace(data) {
     const connection = await this.getConnection();
     const fields = Object.keys(data);
-    console.log(`fields ${fields}`,fields);
     const values = Object.values(data);
     const placeholders = fields.map(() => '?').join(', ');
     
     const sql = `REPLACE INTO ${this.tableName} (${fields.join(', ')}) VALUES (${placeholders})`;
+    console.log(`values ${values}`,values);
+    console.log(`sql ${sql}`,sql);
     const [result] = await connection.execute(sql, values);
     return result;
   }
@@ -77,6 +78,7 @@ class BaseModel {
 
     const connection = await this.getConnection();
     const fields = Object.keys(dataArray[0]);
+    console.log(`fields ${fields}`,fields);
     const placeholder = `(${fields.map(() => '?').join(', ')})`;
     let totalAffectedRows = 0;
 
@@ -88,6 +90,8 @@ class BaseModel {
       const values = batch.flatMap(item => fields.map(field => item[field] !== undefined ? item[field] : null));
       
       const sql = `REPLACE INTO ${this.tableName} (${fields.join(', ')}) VALUES ${placeholders}`;
+      console.log(`values ${values}`,values);
+      console.log(`sql ${sql}`,sql);
       const [result] = await connection.execute(sql, values);
       totalAffectedRows += result.affectedRows;
     }

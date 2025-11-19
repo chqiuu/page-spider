@@ -92,23 +92,25 @@ function extractItemData(element) {
     let buyerName = "";
     let agentName = "";
     let afficheType = "";
-    content = content.replace(/\n/g, "|");
-    let strs = content.split("|");
-    if (strs.length > 3) {
+    content = content.replaceAll('|', '');
+    console.log(`content [${content}]`);
+    let strs = content.split(/\n/);
+    console.log(`strs`,strs);
+    if (strs.length > 7) {
       releaseTimeStr = strs[0].trim();
       buyerName = strs[1].trim();
       agentName = strs[2].trim();
-      afficheType = strs[3].trim();
-      if (strs.length > 4) {
-          provinceName = strs[4].trim();
+      afficheType = strs[7].trim();
+      if (strs.length > 10) {
+          provinceName = strs[10].trim();
       }
-      if (strs.length > 5) {
-          projectDirectoryName = strs[5].trim();
+      if (strs.length > 11) {
+          projectDirectoryName = strs[11].trim();
       }
       return {
         tenderId: tenderId,
         title: title,
-        link: link,
+        url: link,
         releaseTime: releaseTimeStr,
         buyerName: buyerName,
         agentName: agentName,
