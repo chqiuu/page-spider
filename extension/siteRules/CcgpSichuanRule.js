@@ -1,5 +1,4 @@
 // 四川政府采购网规则 (www.ccgp-sichuan.gov.cn)
-// 该网站使用 Vue，通过拦截 AJAX 请求获取 JSON 数据
 
 (function() {
   'use strict';
@@ -17,312 +16,312 @@
         'www.ccgp-sichuan.gov.cn',
         'ccgp-sichuan.gov.cn'
       ];
-      
-      // 存储 AJAX 响应数据
-      this.ajaxResponseData = null;
-      this.ajaxResponsePromise = null;
-      this.ajaxResponseResolve = null;
-      this.ajaxResponseReject = null;
-      this.hasClickedQuery = false; // 标记是否已点击过查询按钮
-      
-      // 初始化 AJAX 拦截器
-      this.initAjaxInterceptor();
+      this.queryButtonSelector = 'button:contains("查询"), button[type="button"]:contains("查询"), .el-button:contains("查询")';
+      this.currentPage = 1;
+      this.pageSize = 20; // 根据实际API调整
     }
 
     /**
-     * 初始化 AJAX 拦截器，拦截 XMLHttpRequest 和 fetch 请求
-     */
-    initAjaxInterceptor() {
-      // 拦截 XMLHttpRequest
-      const self = this;
-      const originalXHROpen = XMLHttpRequest.prototype.open;
-      const originalXHRSend = XMLHttpRequest.prototype.send;
-      
-      XMLHttpRequest.prototype.open = function(method, url, ...args) {
-        this._url = url;
-        this._method = method;
-        return originalXHROpen.apply(this, [method, url, ...args]);
-      };
-      
-      XMLHttpRequest.prototype.send = function(...args) {
-        const xhr = this;
-        
-        // 监听响应
-        xhr.addEventListener('load', function() {
-          try {
-            // 检查是否是数据查询接口（根据实际接口URL调整）
-            if (xhr._url && (
-              xhr._url.includes('/api/') || 
-              xhr._url.includes('/select') ||
-              xhr._url.includes('/list')
-            )) {
-              const responseText = xhr.responseText;
-              if (responseText) {
-                try {
-                  const jsonData = JSON.parse(responseText);
-                  // 存储响应数据
-                  self.ajaxResponseData = jsonData;
-                  if (self.ajaxResponseResolve) {
-                    self.ajaxResponseResolve(jsonData);
-                    self.ajaxResponseResolve = null;
-                    self.ajaxResponseReject = null;
-                  }
-                } catch (e) {
-                  console.warn('解析 AJAX 响应 JSON 失败:', e);
-                }
-              }
-            }
-          } catch (error) {
-            console.error('处理 AJAX 响应失败:', error);
-          }
-        });
-        
-        return originalXHRSend.apply(this, args);
-      };
-      
-      // 拦截 fetch
-      const originalFetch = window.fetch;
-      window.fetch = function(url, options = {}) {
-        return originalFetch.apply(this, arguments).then(response => {
-          // 检查是否是数据查询接口
-          const urlStr = typeof url === 'string' ? url : url.url || '';
-          if (urlStr && (
-            urlStr.includes('/api/') || 
-            urlStr.includes('/select') ||
-            urlStr.includes('/list')
-          )) {
-            // 克隆响应以便读取
-            const clonedResponse = response.clone();
-            clonedResponse.json().then(jsonData => {
-              self.ajaxResponseData = jsonData;
-              if (self.ajaxResponseResolve) {
-                self.ajaxResponseResolve(jsonData);
-                self.ajaxResponseResolve = null;
-                self.ajaxResponseReject = null;
-              }
-            }).catch(e => {
-              console.warn('解析 fetch 响应 JSON 失败:', e);
-            });
-          }
-          return response;
-        });
-      };
-    }
-
-    /**
-     * 获取查询按钮的选择器
+     * 获取查询按钮选择器
      * @returns {string}
      */
     getQueryButtonSelector() {
-      // 根据实际页面结构调整，可能的选择器：
-      // 'button:contains("查询")', '.query-btn', '#search-btn', 'button[type="submit"]'
-      return 'button.el-button.el-button--primary.el-button--medium, button:contains("查询"), .el-button--primary, [class*="query"], [class*="search"]';
+      return 'div > button.el-button.el-button--primary.el-button--medium';
     }
 
     /**
-     * 点击查询按钮并等待 AJAX 响应
+     * 拦截并获取API请求的响应数据
+     * @param {number} timeout - 超时时间（毫秒）
+     * @returns {Promise<Object>} - API返回的JSON数据
      */
-    async clickQueryButton() {
+    interceptApiRequest(timeout = 10000) {
       return new Promise((resolve, reject) => {
-        // 查找查询按钮
-        const queryButton = document.querySelector(this.getQueryButtonSelector()) ||
-                           Array.from(document.querySelectorAll('button')).find(btn => 
-                             btn.textContent && btn.textContent.includes('查询')
-                           );
-        
-        if (!queryButton) {
-          reject(new Error('未找到查询按钮'));
-          return;
-        }
-        
-        // 设置响应监听
-        this.ajaxResponseResolve = resolve;
-        this.ajaxResponseReject = reject;
-        this.ajaxResponseData = null;
-        
-        // 点击查询按钮
-        try {
-          queryButton.click();
+        let intercepted = false;
+        let originalFetch = window.fetch;
+        let originalXHR = window.XMLHttpRequest;
+
+        // 拦截 fetch 请求
+        window.fetch = function(...args) {
+          const url = typeof args[0] === 'string' ? args[0] : args[0].url;
+          const options = args[1] || {};
+
+          console.log('拦截到 fetch 请求:', url, options);
+          // 检查是否是目标API请求（application/json）
+          const contentType = options.headers && (
+            options.headers['Content-Type'] || 
+            options.headers['content-type'] ||
+            (options.headers.get && options.headers.get('Content-Type')) ||
+            (options.headers.get && options.headers.get('content-type'))
+          );
           
-          // 超时保护（30秒）
-          setTimeout(() => {
-            if (this.ajaxResponseResolve === resolve) {
-              this.ajaxResponseResolve = null;
-              this.ajaxResponseReject = null;
-              reject(new Error('等待 AJAX 响应超时'));
+          const isJsonRequest = contentType && contentType.includes('application/json');
+          const isPostRequest = (options.method || 'GET').toUpperCase() === 'POST';
+          
+          if (isPostRequest && isJsonRequest) {
+            console.log('拦截到 fetch 请求:', url, options);
+            
+            return originalFetch.apply(this, args)
+              .then(response => {
+                // 克隆响应以便读取
+                const clonedResponse = response.clone();
+                
+                // 检查响应类型
+                const responseContentType = response.headers.get('content-type') || 
+                                          response.headers.get('Content-Type') || '';
+                if (responseContentType.includes('application/json')) {
+                  clonedResponse.json().then(data => {
+                    if (!intercepted) {
+                      intercepted = true;
+                      console.log('获取到API响应数据:', data);
+                      resolve(data);
+                      // 恢复原始fetch
+                      window.fetch = originalFetch;
+                      window.XMLHttpRequest = originalXHR;
+                    }
+                  }).catch(err => {
+                    console.error('解析JSON失败:', err);
+                  });
+                }
+                
+                return response;
+              })
+              .catch(error => {
+                console.error('fetch请求失败:', error);
+                if (!intercepted) {
+                  intercepted = true;
+                  window.fetch = originalFetch;
+                  window.XMLHttpRequest = originalXHR;
+                  reject(error);
+                }
+              });
+          }
+          
+          // 非目标请求，正常处理
+          return originalFetch.apply(this, args);
+        };
+
+        // 拦截 XMLHttpRequest
+        const XHRInterceptor = function() {
+          const xhr = new originalXHR();
+          const originalOpen = xhr.open;
+          const originalSend = xhr.send;
+          const originalSetRequestHeader = xhr.setRequestHeader;
+
+          let requestUrl = '';
+          let requestMethod = '';
+          let requestHeaders = {};
+
+          xhr.open = function(method, url, ...rest) {
+            requestMethod = method;
+            requestUrl = url;
+            return originalOpen.apply(this, [method, url, ...rest]);
+          };
+
+          xhr.setRequestHeader = function(header, value) {
+            requestHeaders[header] = value;
+            return originalSetRequestHeader.apply(this, arguments);
+          };
+
+          xhr.send = function(data) {
+            // 检查是否是目标API请求
+            const contentType = requestHeaders['Content-Type'] || requestHeaders['content-type'];
+            const isJsonRequest = contentType && contentType.includes('application/json');
+            const isPostRequest = requestMethod.toUpperCase() === 'POST';
+            
+            if (isPostRequest && isJsonRequest) {
+              console.log('拦截到 XHR 请求:', requestUrl, requestHeaders);
+              
+              xhr.addEventListener('load', function() {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                  const responseContentType = xhr.getResponseHeader('content-type') || 
+                                            xhr.getResponseHeader('Content-Type') || '';
+                  if (responseContentType.includes('application/json')) {
+                    try {
+                      const data = JSON.parse(xhr.responseText);
+                      if (!intercepted) {
+                        intercepted = true;
+                        console.log('获取到API响应数据:', data);
+                        resolve(data);
+                        // 恢复原始XHR
+                        window.fetch = originalFetch;
+                        window.XMLHttpRequest = originalXHR;
+                      }
+                    } catch (err) {
+                      console.error('解析JSON失败:', err);
+                    }
+                  }
+                }
+              });
+
+              xhr.addEventListener('error', function() {
+                if (!intercepted) {
+                  intercepted = true;
+                  window.fetch = originalFetch;
+                  window.XMLHttpRequest = originalXHR;
+                  reject(new Error('XHR请求失败'));
+                }
+              });
             }
-          }, 30000);
-        } catch (error) {
-          this.ajaxResponseResolve = null;
-          this.ajaxResponseReject = null;
-          reject(error);
-        }
+
+            return originalSend.apply(this, arguments);
+          };
+
+          return xhr;
+        };
+        XHRInterceptor.prototype = originalXHR.prototype;
+        window.XMLHttpRequest = XHRInterceptor;
+
+        // 超时处理
+        setTimeout(() => {
+          if (!intercepted) {
+            intercepted = true;
+            window.fetch = originalFetch;
+            window.XMLHttpRequest = originalXHR;
+            reject(new Error('拦截请求超时'));
+          }
+        }, timeout);
       });
     }
 
     /**
-     * 等待页面加载完成，并点击查询按钮获取数据
+     * 点击查询按钮并获取数据
+     * @returns {Promise<Object>} - 包含items数组的数据对象
      */
-    async waitForPageLoad() {
-      // 先等待基础页面加载
-      await super.waitForPageLoad();
+    async clickQueryAndGetData() {
+      // 等待页面加载
+      await this.waitForPageLoad();
       
-      // 等待 Vue 应用初始化（延迟一下确保 Vue 已渲染）
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // 只在第一次调用时点击查询按钮
-      if (!this.hasClickedQuery) {
-        try {
-          await this.clickQueryButton();
-          this.hasClickedQuery = true;
-          // 等待数据渲染到 DOM（可选，如果直接从 JSON 提取则不需要）
-          await new Promise(resolve => setTimeout(resolve, 500));
-        } catch (error) {
-          console.warn('点击查询按钮失败或等待响应超时:', error);
-          // 继续执行，可能数据已经存在
-        }
+      // 查找查询按钮
+      const queryButton = document.querySelector(this.getQueryButtonSelector());
+      if (!queryButton) {
+        throw new Error('未找到查询按钮，请检查选择器: ' + this.getQueryButtonSelector());
       }
+
+      // 设置拦截器
+      const interceptPromise = this.interceptApiRequest(15000);
+
+      // 点击查询按钮
+      console.log('点击查询按钮...');
+      queryButton.click();
+
+      // 等待并获取API响应
+      const apiData = await interceptPromise;
+      
+      // 从API响应中提取数据
+      return this.extractDataFromApiResponse(apiData);
+    }
+
+    /**
+     * 从API响应中提取数据
+     * @param {Object} apiResponse - API返回的JSON数据
+     * @returns {Object} - 包含items数组的数据对象
+     */
+    extractDataFromApiResponse(apiResponse) {
+      // 根据实际API响应结构调整
+      // 常见的响应结构可能是：
+      // { data: { list: [...] }, records: [...], result: { data: [...] } } 等
+      
+      let items = [];
+      
+      // 尝试多种可能的响应结构
+      if (apiResponse.data) {
+        if (Array.isArray(apiResponse.data)) {
+          items = apiResponse.data;
+        } else if (apiResponse.data.list && Array.isArray(apiResponse.data.list)) {
+          items = apiResponse.data.list;
+        } else if (apiResponse.data.records && Array.isArray(apiResponse.data.records)) {
+          items = apiResponse.data.records;
+        } else if (apiResponse.data.data && Array.isArray(apiResponse.data.data)) {
+          items = apiResponse.data.data;
+        }
+      } else if (Array.isArray(apiResponse)) {
+        items = apiResponse;
+      } else if (apiResponse.records && Array.isArray(apiResponse.records)) {
+        items = apiResponse.records;
+      } else if (apiResponse.list && Array.isArray(apiResponse.list)) {
+        items = apiResponse.list;
+      }
+
+      // 转换数据格式
+      const convertedItems = items.map(item => this.convertApiItemToTenderInfo(item));
+
+      return {
+        items: convertedItems,
+        total: convertedItems.length,
+        pageUrl: window.location.href,
+        crawlTime: new Date().toISOString(),
+        ruleName: this.name,
+        apiResponse: apiResponse // 保留原始响应以便调试
+      };
+    }
+
+    /**
+     * 将API返回的数据项转换为招标信息格式
+     * @param {Object} apiItem - API返回的单个数据项
+     * @returns {Object} - 转换后的招标信息对象
+     */
+    convertApiItemToTenderInfo(apiItem) {
+      // 根据实际API返回的字段名进行映射
+      // 这里需要根据实际API响应结构调整字段映射
+      
+      const title = apiItem.title || apiItem.name || apiItem.projectName || '';
+      const url = apiItem.url || apiItem.link || apiItem.detailUrl || '';
+      const releaseTime = apiItem.releaseTime || apiItem.publishTime || apiItem.createTime || '';
+      const buyerName = apiItem.buyerName || apiItem.purchaser || apiItem.buyer || '';
+      const agentName = apiItem.agentName || apiItem.agency || apiItem.agent || '';
+      const provinceName = apiItem.provinceName || apiItem.province || '四川省';
+      const afficheType = apiItem.afficheType || apiItem.announcementType || apiItem.type || '';
+      const projectDirectoryName = apiItem.projectDirectoryName || apiItem.category || apiItem.directory || '';
+      const districtName = apiItem.districtName || apiItem.district || apiItem.area || '';
+      const projectPurchaseWay = apiItem.projectPurchaseWay || apiItem.purchaseWay || apiItem.method || '';
+      const openTenderCode = apiItem.openTenderCode || apiItem.tenderCode || apiItem.code || '';
+      const budget = apiItem.budget || apiItem.amount || '';
+      const expireTime = apiItem.expireTime || apiItem.deadline || apiItem.endTime || '';
+
+      // 生成唯一ID
+      const tenderId = url ? this.generateTenderId(url) : 
+                      (apiItem.id ? String(apiItem.id) : 
+                      (apiItem.tenderId || this.generateTenderId(window.location.href + '_' + title)));
+
+      return {
+        tenderId: tenderId,
+        flag: 0,
+        title: title,
+        url: url,
+        releaseTime: releaseTime,
+        buyerName: buyerName,
+        agentName: agentName,
+        provinceName: provinceName,
+        afficheType: afficheType,
+        projectDirectoryName: projectDirectoryName,
+        districtName: districtName,
+        projectPurchaseWay: projectPurchaseWay,
+        openTenderCode: openTenderCode,
+        budget: budget,
+        expireTime: expireTime,
+        crawledAt: new Date().toISOString()
+      };
     }
 
     getListItemSelector() {
-      // 如果从 JSON 提取数据，这个选择器可能不需要
-      // 但保留以兼容现有代码
-      return 'div.is-scrolling-none > table > tbody > tr, .el-table__body tbody tr';
+      // 由于使用API数据，这个选择器可能不再需要，但保留以兼容
+      return 'div.is-scrolling-none > table > tbody > tr';
     }
 
     getNextPageButtonSelector() {
-      // 分页按钮选择器
-      return 'div.el-pagination button.btn-next, .el-pagination .el-pager li.next, button[aria-label="下一页"]';
+      // 根据实际页面结构调整选择器
+      return 'div.el-pagination > button.btn-next, .el-pagination .btn-next';
     }
 
     /**
-     * 从 JSON 数据中提取列表项
-     * @param {Object} jsonData - AJAX 返回的 JSON 数据
-     * @returns {Array} 提取的数据项数组
+     * 重写爬取数据方法，使用API拦截方式
      */
-    extractItemsFromJson(jsonData) {
-      const items = [];
-      
-      try {
-        // 根据实际 JSON 结构调整数据路径
-        // 可能的路径：jsonData.data, jsonData.list, jsonData.records, jsonData.items, jsonData.result
-        let dataList = null;
-        
-        if (jsonData.data) {
-          dataList = Array.isArray(jsonData.data) ? jsonData.data : 
-                    (jsonData.data.list || jsonData.data.records || jsonData.data.items || []);
-        } else if (jsonData.list) {
-          dataList = jsonData.list;
-        } else if (jsonData.records) {
-          dataList = jsonData.records;
-        } else if (jsonData.items) {
-          dataList = jsonData.items;
-        } else if (jsonData.result) {
-          dataList = Array.isArray(jsonData.result) ? jsonData.result : 
-                    (jsonData.result.list || jsonData.result.records || []);
-        } else if (Array.isArray(jsonData)) {
-          dataList = jsonData;
-        }
-        
-        if (!dataList || !Array.isArray(dataList)) {
-          console.warn('未找到列表数据，JSON 结构:', jsonData);
-          return items;
-        }
-        
-        // 遍历数据项并提取
-        for (const itemData of dataList) {
-          const item = this.extractItemFromJsonData(itemData);
-          if (item) {
-            items.push(item);
-          }
-        }
-      } catch (error) {
-        console.error('从 JSON 提取数据失败:', error);
-      }
-      
-      return items;
+    async crawlDataFromApi() {
+      return await this.clickQueryAndGetData();
     }
 
-    /**
-     * 从单个 JSON 数据对象中提取字段
-     * @param {Object} itemData - JSON 数据对象
-     * @returns {Object|null}
-     */
-    extractItemFromJsonData(itemData) {
-      try {
-        // 根据实际 JSON 字段名调整映射
-        // 这里提供常见的字段名映射，需要根据实际 API 响应调整
-        
-        const title = itemData.title || itemData.name || itemData.projectName || itemData.tenderTitle || '';
-        const url = itemData.url || itemData.link || itemData.detailUrl || itemData.href || '';
-        const releaseTime = itemData.releaseTime || itemData.publishTime || itemData.createTime || 
-                           itemData.releaseDate || itemData.publishDate || '';
-        const buyerName = itemData.buyerName || itemData.purchaser || itemData.buyer || '';
-        const agentName = itemData.agentName || itemData.agency || itemData.agent || '';
-        const provinceName = itemData.provinceName || itemData.province || '四川省';
-        const afficheType = itemData.afficheType || itemData.announcementType || itemData.type || '';
-        const projectDirectoryName = itemData.projectDirectoryName || itemData.directoryName || 
-                                    itemData.category || itemData.projectCategory || '';
-        const districtName = itemData.districtName || itemData.district || itemData.area || '';
-        const projectPurchaseWay = itemData.projectPurchaseWay || itemData.purchaseWay || 
-                                  itemData.purchaseMethod || '';
-        const openTenderCode = itemData.openTenderCode || itemData.tenderCode || 
-                              itemData.projectCode || itemData.code || '';
-        const budget = itemData.budget || itemData.amount || itemData.totalAmount || '';
-        const expireTime = itemData.expireTime || itemData.deadline || itemData.expireDate || '';
-        
-        // 生成完整 URL（如果是相对路径）
-        let fullUrl = url;
-        if (url && !url.startsWith('http')) {
-          if (url.startsWith('/')) {
-            fullUrl = window.location.origin + url;
-          } else {
-            fullUrl = new URL(url, window.location.origin).href;
-          }
-        }
-        
-        // 生成唯一ID
-        const tenderId = fullUrl ? this.generateTenderId(fullUrl) : 
-                        (itemData.id || itemData.tenderId || Date.now() + Math.random());
-        
-        if (!title && !fullUrl) {
-          return null;
-        }
-        
-        return {
-          tenderId: tenderId,
-          title: title,
-          url: fullUrl || '',
-          releaseTime: releaseTime,
-          buyerName: buyerName,
-          agentName: agentName,
-          provinceName: provinceName,
-          afficheType: afficheType,
-          projectDirectoryName: projectDirectoryName,
-          districtName: districtName,
-          projectPurchaseWay: projectPurchaseWay,
-          openTenderCode: openTenderCode,
-          budget: budget,
-          expireTime: expireTime,
-          crawledAt: new Date().toISOString()
-        };
-      } catch (error) {
-        console.error('提取 JSON 数据项失败:', error);
-        return null;
-      }
-    }
-
-    /**
-     * 从 DOM 元素提取数据（兼容方法，优先使用 JSON 数据）
-     */
     extractItemData(element) {
-      // 如果已有 JSON 数据，优先使用
-      if (this.ajaxResponseData) {
-        // 这个方法主要用于兼容，实际应该使用 extractItemsFromJson
-        return null;
-      }
-      
-      // 如果没有 JSON 数据，尝试从 DOM 提取（降级方案）
+      // 保留此方法以兼容DOM提取方式，但主要使用API方式
       try {
         const aElement = element.querySelector('a');
         if (!aElement) return null;
@@ -341,76 +340,23 @@
             tenderId: tenderId,
             title: title,
             url: link,
+            releaseTime: '',
+            buyerName: '',
+            agentName: '',
             provinceName: provinceName,
+            afficheType: '',
+            projectDirectoryName: '',
             crawledAt: new Date().toISOString()
           };
         }
       } catch (error) {
-        console.error('从 DOM 提取数据失败:', error);
+        console.error('提取数据失败:', error);
       }
       return null;
     }
 
-    /**
-     * 等待页面导航完成（重写以支持 AJAX 分页）
-     */
-    async waitForPageNavigation() {
-      return new Promise((resolve) => {
-        // 如果使用 AJAX 分页，等待 AJAX 响应
-        if (this.ajaxResponsePromise) {
-          this.ajaxResponsePromise.then(() => {
-            setTimeout(resolve, 500);
-          }).catch(() => {
-            setTimeout(resolve, 2000);
-          });
-        } else {
-          // 降级到默认实现
-          super.waitForPageNavigation().then(resolve);
-        }
-      });
-    }
-
-    /**
-     * 点击下一页（重写以支持 AJAX 分页）
-     */
-    async clickNextPage(nextButton) {
-      // 清空之前的响应数据，准备接收新数据
-      this.ajaxResponseData = null;
-      
-      // 设置 AJAX 响应 Promise
-      this.ajaxResponsePromise = new Promise((resolve, reject) => {
-        this.ajaxResponseResolve = resolve;
-        this.ajaxResponseReject = reject;
-        
-        // 超时保护
-        setTimeout(() => {
-          if (this.ajaxResponseResolve === resolve) {
-            this.ajaxResponseResolve = null;
-            this.ajaxResponseReject = null;
-            reject(new Error('等待分页 AJAX 响应超时'));
-          }
-        }, 30000);
-      });
-      
-      // 点击下一页按钮
-      await super.clickNextPage(nextButton);
-      
-      // 等待 AJAX 响应
-      try {
-        await this.ajaxResponsePromise;
-        this.ajaxResponsePromise = null;
-        // 等待数据更新
-        await new Promise(resolve => setTimeout(resolve, 500));
-      } catch (error) {
-        console.warn('等待分页响应失败:', error);
-        this.ajaxResponsePromise = null;
-      }
-    }
-
     generateTenderId(url) {
       // 为四川政府采购网生成唯一ID
-      if (!url) return Date.now() + '_' + Math.random();
-      
       return url.replace(/^https?:\/\//, '')
                 .replace(/^www\./, '')
                 .replace(/ccgp-sichuan\.gov\.cn\//, '')

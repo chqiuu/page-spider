@@ -278,30 +278,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // 爬取页面数据
 async function crawlData(rule) {
   try {
+    // 如果规则支持API拦截方式，优先使用
+    if (rule.crawlDataFromApi && typeof rule.crawlDataFromApi === 'function') {
+      console.log('使用API拦截方式爬取数据');
+      return await rule.crawlDataFromApi();
+    }
+    
+    // 否则使用DOM提取方式
     // 等待页面加载完成
     await rule.waitForPageLoad();
     
-    let items = [];
-    
-    // 优先尝试从 JSON 数据提取（适用于 Vue 等动态加载的网站）
-    if (typeof rule.extractItemsFromJson === 'function' && rule.ajaxResponseData) {
-      console.log('从 JSON 数据提取列表项...');
-      items = rule.extractItemsFromJson(rule.ajaxResponseData);
-      
-      if (items.length > 0) {
-        return {
-          items: items,
-          total: items.length,
-          pageUrl: window.location.href,
-          crawlTime: new Date().toISOString(),
-          ruleName: rule.name
-        };
-      }
-    }
-    
-    // 降级到 DOM 提取方式
+    // 使用规则的选择器提取列表项
     const selector = rule.getListItemSelector();
     const elements = document.querySelectorAll(selector);
+    let items = [];
     
     for (const element of elements) {
       let item = rule.extractItemData(element);
