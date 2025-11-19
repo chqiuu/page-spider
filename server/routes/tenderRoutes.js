@@ -12,7 +12,7 @@ router.post('/save', async (req, res) => {
   try {
     await dbManager.getConnection();
     const data = req.body;
-    const result = await tenderInfoModel.replace(data);
+    const result = await tenderInfoModel.save(data);
     res.json({ success: true, ...result });
   } catch (error) {
     console.error('保存招标信息失败:', error);
@@ -28,7 +28,7 @@ router.post('/saveBatch', async (req, res) => {
   try {
     await dbManager.getConnection();
     const dataArray = req.body.items || req.body;
-    const result = await tenderInfoModel.replaceBatch(dataArray);
+    const result = await tenderInfoModel.saveBatch(dataArray);
     res.json({ success: true, count: result.count });
   } catch (error) {
     console.error('批量保存招标信息失败:', error);

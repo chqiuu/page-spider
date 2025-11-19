@@ -60,6 +60,7 @@ class BaseModel {
   async replace(data) {
     const connection = await this.getConnection();
     const fields = Object.keys(data);
+    console.log(`fields ${fields}`,fields);
     const values = Object.values(data);
     const placeholders = fields.map(() => '?').join(', ');
     

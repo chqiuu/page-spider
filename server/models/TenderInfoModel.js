@@ -34,70 +34,21 @@ class TenderInfoModel extends BaseModel {
   // 保存招标信息（使用 REPLACE，因为主键是 tender_id）
   async save(data) {
     const tenderData = {
-      tender_id: data.tender_id || '',
+      tender_id: data.tenderId || '',
       flag: data.flag !== undefined ? data.flag : null,
       title: data.title || '',
-      release_time: data.release_time || null,
+      release_time: data.releaseTime || null,
       url: data.url || '',
-      province_name: data.province_name || '',
-      district_name: data.district_name || '',
-      project_purchase_way: data.project_purchase_way || '',
-      open_tender_code: data.open_tender_code || '',
+      province_name: data.provinceName || '',
+      district_name: data.districtName || '',
+      project_purchase_way: data.projectPurchaseWay || '',
+      open_tender_code: data.openTenderCode || '',
       budget: data.budget || '',
-      project_directory_name: data.project_directory_name || '',
-      buyer_name: data.buyer_name || '',
-      agent_name: data.agent_name || '',
-      affiche_type: data.affiche_type || '',
-      expire_time: data.expire_time || null
-    };
-
-    // 使用 REPLACE INTO，如果 tender_id 存在则更新，不存在则插入
-    const result = await this.save(tenderData);
-    return { tender_id: tenderData.tender_id, count: 1 };
-  }
-
-  // 批量保存招标信息（使用 REPLACE）
-  async saveBatch(dataArray) {
-    const items = dataArray.map(data => ({
-      tender_id: data.tender_id || '',
-      flag: data.flag !== undefined ? data.flag : null,
-      title: data.title || '',
-      release_time: data.release_time || null,
-      url: data.url || '',
-      province_name: data.province_name || '',
-      district_name: data.district_name || '',
-      project_purchase_way: data.project_purchase_way || '',
-      open_tender_code: data.open_tender_code || '',
-      budget: data.budget || '',
-      project_directory_name: data.project_directory_name || '',
-      buyer_name: data.buyer_name || '',
-      agent_name: data.agent_name || '',
-      affiche_type: data.affiche_type || '',
-      expire_time: data.expire_time || null
-    }));
-
-    const result = await this.saveBatch(items);
-    return { count: result.affectedRows };
-  }
-
-  // 保存招标信息（使用 REPLACE，因为主键是 tender_id）
-  async replace(data) {
-    const tenderData = {
-      tender_id: data.tender_id || '',
-      flag: data.flag !== undefined ? data.flag : null,
-      title: data.title || '',
-      release_time: data.release_time || null,
-      url: data.url || '',
-      province_name: data.province_name || '',
-      district_name: data.district_name || '',
-      project_purchase_way: data.project_purchase_way || '',
-      open_tender_code: data.open_tender_code || '',
-      budget: data.budget || '',
-      project_directory_name: data.project_directory_name || '',
-      buyer_name: data.buyer_name || '',
-      agent_name: data.agent_name || '',
-      affiche_type: data.affiche_type || '',
-      expire_time: data.expire_time || null
+      project_directory_name: data.projectDirectoryName || '',
+      buyer_name: data.buyerName || '',
+      agent_name: data.agentName || '',
+      affiche_type: data.afficheType || '',
+      expire_time: data.expireTime || null
     };
 
     // 使用 REPLACE INTO，如果 tender_id 存在则更新，不存在则插入
@@ -106,30 +57,29 @@ class TenderInfoModel extends BaseModel {
   }
 
   // 批量保存招标信息（使用 REPLACE）
-  async replaceBatch(dataArray) {
+  async saveBatch(dataArray) {
     const items = dataArray.map(data => ({
-      tender_id: data.tender_id || '',
+      tender_id: data.tenderId || '',
       flag: data.flag !== undefined ? data.flag : null,
       title: data.title || '',
-      release_time: data.release_time || null,
+      release_time: data.releaseTime || null,
       url: data.url || '',
-      province_name: data.province_name || '',
-      district_name: data.district_name || '',
-      project_purchase_way: data.project_purchase_way || '',
-      open_tender_code: data.open_tender_code || '',
+      province_name: data.provinceName || '',
+      district_name: data.districtName || '',
+      project_purchase_way: data.projectPurchaseWay || '',
+      open_tender_code: data.openTenderCode || '',
       budget: data.budget || '',
-      project_directory_name: data.project_directory_name || '',
-      buyer_name: data.buyer_name || '',
-      agent_name: data.agent_name || '',
-      affiche_type: data.affiche_type || '',
-      expire_time: data.expire_time || null
+      project_directory_name: data.projectDirectoryName || '',
+      buyer_name: data.buyerName || '',
+      agent_name: data.agentName || '',
+      affiche_type: data.afficheType || '',
+      expire_time: data.expireTime || null
     }));
 
     const result = await this.replaceBatch(items);
     return { count: result.affectedRows };
   }
 
-  // 获取所有数据（按发布时间倒序）
   async getAll() {
     return await this.findAll('release_time DESC, create_time DESC');
   }
