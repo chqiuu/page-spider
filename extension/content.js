@@ -223,14 +223,36 @@ function isNextPageAvailable(nextButton) {
 async function clickNextPage(nextButton) {
   return new Promise((resolve) => {
     try {
-      // 方法1: 如果按钮有href，直接导航（最可靠）
-      if (nextButton.href && nextButton.href !== window.location.href && !nextButton.href.includes('javascript:')) {
-        window.location.href = nextButton.href;
+      // 获取按钮的href属性值（使用getAttribute避免浏览器自动解析）
+      const hrefAttr = nextButton.getAttribute('href');
+      const href = nextButton.href;
+      const isJavaScriptLink = (hrefAttr && hrefAttr.trim().toLowerCase().startsWith('javascript:')) ||
+                               (href && href.trim().toLowerCase().startsWith('javascript:'));
+
+      // 方法1: 如果是普通HTTP链接，直接导航（最可靠且安全）
+      if (href && !isJavaScriptLink && href !== window.location.href && 
+          (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('/'))) {
+        // 处理相对路径
+        if (href.startsWith('/')) {
+          window.location.href = new URL(href, window.location.origin).href;
+        } else {
+          window.location.href = href;
+        }
         setTimeout(resolve, 200);
         return;
       }
       
-      // 方法2: 触发点击事件
+      // 方法2: 对于javascript:链接或其他情况，使用事件触发（避免CSP错误）
+      // 如果href是javascript:链接，临时移除它以避免CSP错误
+      let originalHref = null;
+      let isHrefRemoved = false;
+      
+      if (isJavaScriptLink && hrefAttr) {
+        originalHref = hrefAttr;
+        nextButton.removeAttribute('href');
+        isHrefRemoved = true;
+      }
+      
       // 先尝试触发mousedown和mouseup事件（更接近真实点击）
       const mouseDownEvent = new MouseEvent('mousedown', {
         bubbles: true,
@@ -253,27 +275,60 @@ async function clickNextPage(nextButton) {
         button: 0
       });
       
+      // 触发事件序列
       nextButton.dispatchEvent(mouseDownEvent);
       setTimeout(() => {
         nextButton.dispatchEvent(mouseUpEvent);
         setTimeout(() => {
+          // 先触发click事件
           nextButton.dispatchEvent(clickEvent);
-          // 如果按钮有onclick属性，也执行它
-          if (nextButton.onclick) {
-            nextButton.onclick();
+          
+          // 对于javascript:链接，不调用click()方法以避免CSP错误
+          // 只触发事件，让事件监听器处理
+          if (!isJavaScriptLink) {
+            // 对于普通链接，可以安全地调用click方法
+            try {
+              nextButton.click();
+            } catch (clickError) {
+              console.warn('调用click方法失败:', clickError);
+            }
+          } else {
+            // 对于javascript:链接，只依赖事件触发
+            // 如果按钮有onclick事件监听器，事件触发应该已经调用了它
+            console.log('使用事件触发方式处理javascript:链接，避免CSP错误');
           }
-          // 调用原生click方法
-          nextButton.click();
+          
+          // 恢复原始href（如果之前移除了）
+          if (isHrefRemoved && originalHref) {
+            nextButton.setAttribute('href', originalHref);
+            isHrefRemoved = false;
+          }
+          
           setTimeout(resolve, 2000);
         }, 50);
       }, 50);
     } catch (error) {
       console.error('点击下一页失败:', error);
-      // 如果所有方法都失败，尝试直接调用click方法
-      try {
-        nextButton.click();
-      } catch (e) {
-        console.error('直接调用click方法也失败:', e);
+      // 最后的备用方案：检查是否是javascript:链接，如果是则只触发事件
+      const hrefAttr = nextButton.getAttribute('href');
+      const isJavaScriptLink = (hrefAttr && hrefAttr.trim().toLowerCase().startsWith('javascript:'));
+      
+      if (!isJavaScriptLink) {
+        // 对于普通链接，可以尝试直接调用click方法
+        try {
+          nextButton.click();
+        } catch (e) {
+          console.error('直接调用click方法也失败:', e);
+        }
+      } else {
+        // 对于javascript:链接，只触发事件避免CSP错误
+        const clickEvent = new MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+          button: 0
+        });
+        nextButton.dispatchEvent(clickEvent);
       }
       setTimeout(resolve, 2000);
     }
