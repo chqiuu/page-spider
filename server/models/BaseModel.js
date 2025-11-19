@@ -64,7 +64,6 @@ class BaseModel {
     const placeholders = fields.map(() => '?').join(', ');
     
     const sql = `REPLACE INTO ${this.tableName} (${fields.join(', ')}) VALUES (${placeholders})`;
-    console.log(`values ${values}`,values);
     console.log(`sql ${sql}`,sql);
     const [result] = await connection.execute(sql, values);
     return result;
@@ -90,7 +89,6 @@ class BaseModel {
       const values = batch.flatMap(item => fields.map(field => item[field] !== undefined ? item[field] : null));
       
       const sql = `REPLACE INTO ${this.tableName} (${fields.join(', ')}) VALUES ${placeholders}`;
-      console.log(`values ${values}`,values);
       console.log(`sql ${sql}`,sql);
       const [result] = await connection.execute(sql, values);
       totalAffectedRows += result.affectedRows;
