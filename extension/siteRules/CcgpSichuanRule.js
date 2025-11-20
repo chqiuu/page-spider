@@ -979,6 +979,7 @@
         // 遍历数据项并提取
         for (const item of dataList) {
           const extractedItem = this.extractItemFromJson(item);
+          console.log('extractedItem',extractedItem);
           if (extractedItem) {
             items.push(extractedItem);
           }
@@ -1004,12 +1005,24 @@
         
         // 尝试多种可能的字段名
         const title = jsonItem.title || jsonItem.tenderTitle || jsonItem.name || jsonItem.projectName || '';
-        const url = jsonItem.url || jsonItem.link || jsonItem.detailUrl || jsonItem.href || '';
-        const releaseTime = jsonItem.releaseTime || jsonItem.publishTime || jsonItem.createTime || jsonItem.time || '';
+        const url = `https://www.ccgp-sichuan.gov.cn/maincms-web/article?type=notice&id=${jsonItem.id}&planId=${jsonItem.planId}`;
+        const releaseTime =  jsonItem.noticeTime || '';
         const buyerName = jsonItem.buyerName || jsonItem.purchaser || jsonItem.buyer || '';
         const agentName = jsonItem.agentName || jsonItem.agent || jsonItem.agency || '';
         const provinceName = jsonItem.provinceName || jsonItem.province || '四川省';
-        const afficheType = jsonItem.afficheType || jsonItem.announcementType || jsonItem.type || '';
+        const noticeType = jsonItem.noticeType || '';
+        let afficheType ='';
+        if(noticeType.includes('00101')){
+          afficheType = '招标公告';
+        }else if(noticeType.includes('001052') || noticeType.includes('001053') || noticeType.includes('00105B')){
+          afficheType = '资格预审公告';
+        }else if(noticeType.includes('00102')){
+          afficheType = '中标公告';
+        }else if(noticeType.includes('00103')){
+          afficheType = '更正公告';
+        }else if(noticeType.includes('001004') || noticeType.includes('001006')){
+          afficheType = '废标（终止）公告';
+        }
         const projectDirectoryName = jsonItem.projectDirectoryName || jsonItem.directory || jsonItem.category || '';
         const openTenderCode = jsonItem.openTenderCode || jsonItem.tenderCode || jsonItem.code || '';
         const budget = jsonItem.budget || jsonItem.amount || '';
@@ -1024,8 +1037,7 @@
         }
 
         // 生成唯一ID
-        const tenderId = fullUrl ? this.generateTenderId(fullUrl) : 
-                       (openTenderCode || title.replace(/\s+/g, '_'));
+        const tenderId ='sichuan_'+ jsonItem.id;
 
         if (!title && !fullUrl) {
           return null;
