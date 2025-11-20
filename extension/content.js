@@ -278,13 +278,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // 爬取页面数据
 async function crawlData(rule) {
   try {
-    // 如果规则支持API拦截方式，优先使用
-    if (rule.crawlDataFromApi && typeof rule.crawlDataFromApi === 'function') {
-      console.log('使用API拦截方式爬取数据');
+    // 如果规则支持API模式，优先使用API获取数据
+    if (rule.useApiMode && typeof rule.crawlDataFromApi === 'function') {
+      console.log('使用API模式获取数据...');
       return await rule.crawlDataFromApi();
     }
     
-    // 否则使用DOM提取方式
+    // 否则使用传统的DOM提取方式
     // 等待页面加载完成
     await rule.waitForPageLoad();
     
