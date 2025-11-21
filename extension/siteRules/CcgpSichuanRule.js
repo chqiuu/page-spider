@@ -135,7 +135,7 @@
                 }
                 if (Object.keys(formObj).length > 0) {
                   body = formObj;
-                  console.log('[PerformanceObserver] 从表单获取到请求参数:', formObj);
+                  //console.log('[PerformanceObserver] 从表单获取到请求参数:', formObj);
                   break;
                 }
               }
@@ -143,7 +143,7 @@
               // 如果没有表单，尝试构造一个基本的请求体
               if (!body) {
                 body = { page: 1, pageSize: 20 }; // 默认分页参数
-                console.log('[PerformanceObserver] 使用默认请求参数:', body);
+               // console.log('[PerformanceObserver] 使用默认请求参数:', body);
               }
             }
             
@@ -154,7 +154,7 @@
             // 尝试使用fetch重新请求
             const response = await fetch(url, fetchOptions);
             
-            console.log(`[PerformanceObserver] 重新请求响应: ${response.status} ${response.statusText}`);
+         //   console.log(`[PerformanceObserver] 重新请求响应: ${response.status} ${response.statusText}`);
             
             if (response.ok) {
               const contentType = response.headers.get('content-type') || '';
@@ -180,12 +180,12 @@
                   response: responseData
                 };
                 
-                console.log('[PerformanceObserver] 成功通过重新请求获取数据:', {
-                  url: requestInfo.url,
-                  method: requestInfo.method,
-                  responseType: typeof responseData,
-                  responseKeys: responseData && typeof responseData === 'object' ? Object.keys(responseData) : null
-                });
+                // console.log('[PerformanceObserver] 成功通过重新请求获取数据:', {
+                //   url: requestInfo.url,
+                //   method: requestInfo.method,
+                //   responseType: typeof responseData,
+                //   responseKeys: responseData && typeof responseData === 'object' ? Object.keys(responseData) : null
+                // });
                 
                 clearTimeout(timeout);
                 // 清理拦截器
@@ -234,7 +234,7 @@
                   if (url.includes('api') || url.includes('query') || url.includes('search') || 
                       url.includes('list') || url.includes('page') || url.includes('data') ||
                       url.includes('getList') || url.includes('getData')) {
-                    console.log(`[PerformanceObserver] 检测到可能的API请求: ${url}`);
+                 //   console.log(`[PerformanceObserver] 检测到可能的API请求: ${url}`);
                     if (!detectedApiUrl) {
                       detectedApiUrl = url;
                       // 延迟一点时间后尝试重新请求，确保原请求完成
@@ -777,17 +777,11 @@
      */
     async crawlDataFromApi() {
       try {
-        console.log('[API爬取] 开始通过API获取数据...');
-        console.log('[API爬取] 当前页面URL:', window.location.href);
         
         // 等待页面加载完成
-        console.log('[API爬取] 等待页面加载完成...');
         await this.waitForPageLoad();
-        console.log('[API爬取] 页面加载完成');
 
         // 查找查询按钮
-        console.log('[API爬取] 开始查找查询按钮...');
-        console.log('[API爬取] 查询按钮选择器:', this.getQueryButtonSelector());
         const queryButton = this.findQueryButton();
         
         if (!queryButton) {
@@ -979,7 +973,6 @@
         // 遍历数据项并提取
         for (const item of dataList) {
           const extractedItem = this.extractItemFromJson(item);
-          console.log('extractedItem',extractedItem);
           if (extractedItem) {
             items.push(extractedItem);
           }
@@ -1074,7 +1067,7 @@
 
     getNextPageButtonSelector() {
       // 根据实际页面结构调整选择器
-      return 'div.el-pagination > button.btn-next';
+      return 'div.el-pagination.is-background > button.btn-next';
     }
 
     extractItemData(element) {

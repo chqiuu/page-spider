@@ -73,11 +73,6 @@
         return false;
       }
       
-      // 检查按钮是否有href属性或onclick事件
-      if (!nextButton.href && !nextButton.onclick) {
-        return false;
-      }
-      
       return true;
     }
 
@@ -107,6 +102,19 @@
           }
           
           // 方法2: 对于javascript:链接或其他情况，使用事件触发
+          // 对于普通链接，直接调用click方法即可，避免重复触发
+          if (!isJavaScriptLink) {
+            try {
+              nextButton.click();
+              setTimeout(resolve, 2000);
+              return;
+            } catch (clickError) {
+              console.warn('调用click方法失败，尝试使用事件触发:', clickError);
+              // 如果click方法失败，继续使用事件触发方式
+            }
+          }
+          
+          // 对于javascript:链接或click方法失败的情况，使用事件触发
           let originalHref = null;
           let isHrefRemoved = false;
           
@@ -142,14 +150,6 @@
             nextButton.dispatchEvent(mouseUpEvent);
             setTimeout(() => {
               nextButton.dispatchEvent(clickEvent);
-              
-              if (!isJavaScriptLink) {
-                try {
-                  nextButton.click();
-                } catch (clickError) {
-                  console.warn('调用click方法失败:', clickError);
-                }
-              }
               
               if (isHrefRemoved && originalHref) {
                 nextButton.setAttribute('href', originalHref);

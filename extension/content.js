@@ -198,6 +198,7 @@ async function crawlAllPages(rule) {
       
       // 点击下一页
       updateStatus(`准备跳转到第 ${pageNumber + 1} 页...`, 'crawling');
+      console.log('clickNextPage before',pageNumber + 1);
       await rule.clickNextPage(nextPageButton);
       
       // 等待页面加载
