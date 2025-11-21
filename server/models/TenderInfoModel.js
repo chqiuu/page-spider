@@ -18,8 +18,12 @@ class TenderInfoModel extends BaseModel {
         \`budget\` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL COMMENT '预算金额',
         \`project_directory_name\` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL COMMENT '项目目录名称',
         \`buyer_name\` varchar(100) DEFAULT NULL COMMENT '采购人',
+        \`provider_name\` varchar(100) DEFAULT NULL COMMENT '供应商名称',
+        \`provider_address\` varchar(100) DEFAULT NULL COMMENT '供应商地址',
+        \`transaction_amount\` varchar(100) DEFAULT NULL COMMENT '成交金额',
         \`agent_name\` varchar(100) DEFAULT NULL COMMENT '代理机构',
         \`affiche_type\` varchar(255) DEFAULT NULL COMMENT '公告类型',
+        \`description\` text DEFAULT NULL COMMENT '公告内容',
         \`expire_time\` datetime DEFAULT NULL COMMENT '截至时间',
         \`update_time\` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
         \`create_time\` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -46,8 +50,12 @@ class TenderInfoModel extends BaseModel {
       budget: data.budget || '',
       project_directory_name: data.projectDirectoryName || '',
       buyer_name: data.buyerName || '',
+      provider_name: data.providerName || '',
+      provider_address: data.providerAddress || '',
+      transaction_amount: data.transactionAmount || '',
       agent_name: data.agentName || '',
       affiche_type: data.afficheType || '',
+      description: data.description || '',
       expire_time: data.expireTime || null
     };
 
@@ -71,8 +79,12 @@ class TenderInfoModel extends BaseModel {
       budget: data.budget || '',
       project_directory_name: data.projectDirectoryName || '',
       buyer_name: data.buyerName || '',
+      provider_name: data.providerName || '',
+      provider_address: data.providerAddress || '',
+      transaction_amount: data.transactionAmount || '',
       agent_name: data.agentName || '',
       affiche_type: data.afficheType || '',
+      description: data.description || '',
       expire_time: data.expireTime || null
     }));
 

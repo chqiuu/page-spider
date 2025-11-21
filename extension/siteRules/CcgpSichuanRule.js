@@ -1016,12 +1016,29 @@
         }else if(noticeType.includes('001004') || noticeType.includes('001006')){
           afficheType = '废标（终止）公告';
         }
+        const description = jsonItem.description || jsonItem.content || jsonItem.noticeContent || '';
         const projectDirectoryName = jsonItem.projectDirectoryName || jsonItem.directory || jsonItem.category || '';
         const openTenderCode = jsonItem.openTenderCode || jsonItem.tenderCode || jsonItem.code || '';
         const budget = jsonItem.budget || jsonItem.amount || '';
         const districtName = jsonItem.districtName || jsonItem.district || '';
         const projectPurchaseWay = jsonItem.projectPurchaseWay || jsonItem.purchaseWay || '';
         const expireTime = jsonItem.expireTime || jsonItem.deadline || '';
+        let providerName = jsonItem.providerName || jsonItem.provider || '';
+        let providerAddress = jsonItem.providerAddress || jsonItem.providerAddress || '';
+        let transactionAmount = jsonItem.transactionAmount || jsonItem.transactionAmount || '';
+        if(afficheType === '中标公告'){
+          // 从文本中截取 供应商名称 供应商地址 中标（成交）金额 具体数据 一、项目编号：N5101012025002037 二、项目名称：数据中心核心信息系统升级及维保服务采购项目 三、采购结果 采购包1: 供应商名称 供应商地址 中标（成交）金额 评审总得分 北京晓通宏志科技有限公司 北京市昌平区科技园区超前路9号3号楼2383室 2,608,000.00元 95.33 四、主要标的信息
+          if(description.includes('供应商名称 供应商地址 中标（成交）金额 评审总得分')) {
+            let strs = description.split('供应商名称 供应商地址 中标（成交）金额 评审总得分');
+            if(strs.length > 0){
+              providerName = strs[0];
+            }
+            strs = description.split('供应商地址');
+            if(strs.length > 0){
+              providerAddress = strs[0];
+            }
+          }
+        }
 
         // 处理URL（可能是相对路径）
         let fullUrl = url;
@@ -1052,6 +1069,7 @@
           districtName: districtName,
           projectPurchaseWay: projectPurchaseWay,
           expireTime: expireTime,
+          description: description,
           crawledAt: new Date().toISOString()
         };
       } catch (error) {
