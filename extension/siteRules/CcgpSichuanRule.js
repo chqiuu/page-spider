@@ -1027,16 +1027,48 @@
         let providerAddress = jsonItem.providerAddress || jsonItem.providerAddress || '';
         let transactionAmount = jsonItem.transactionAmount || jsonItem.transactionAmount || '';
         if(afficheType === '中标公告'){
-          // 从文本中截取 供应商名称 供应商地址 中标（成交）金额 具体数据 一、项目编号：N5101012025002037 二、项目名称：数据中心核心信息系统升级及维保服务采购项目 三、采购结果 采购包1: 供应商名称 供应商地址 中标（成交）金额 评审总得分 北京晓通宏志科技有限公司 北京市昌平区科技园区超前路9号3号楼2383室 2,608,000.00元 95.33 四、主要标的信息
-          if(description.includes('供应商名称 供应商地址 中标（成交）金额 评审总得分')) {
-            let strs = description.split('供应商名称 供应商地址 中标（成交）金额 评审总得分');
-            if(strs.length > 0){
-              providerName = strs[0];
-            }
-            strs = description.split('供应商地址');
-            if(strs.length > 0){
-              providerAddress = strs[0];
-            }
+          // 从文本中截取 供应商名称 供应商地址 中标（成交）金额
+          // 文本格式：三、采购结果 采购包1: 供应商名称 供应商地址 中标（成交）金额 评审总得分 北京晓通宏志科技有限公司 北京市昌平区科技园区超前路9号3号楼2383室 2,608,000.00元 95.33 四、主要标的信息
+          if(description){
+                const sectionMatch = description.match(/(供应商名称 供应商地址 中标（成交）金额)\s+(.+?)(?:\s+四、|$)/);
+        console.log(`parseProviderInfoFromDescription sectionMatch`,sectionMatch);
+        if (!sectionMatch) {
+          return null;
+        }
+
+        const dataLine = sectionMatch[2].trim();
+        console.log(`parseProviderInfoFromDescription dataLine`,dataLine);
+        
+        // 先提取金额（格式：数字,数字.数字元）
+        const amountMatch = dataLine.match(/([\d,]+\.?\d*元)/);
+        console.log(`parseProviderInfoFromDescription amountMatch`,amountMatch);
+        if (!amountMatch) {
+          return null;
+        }
+
+        const transactionAmount = amountMatch[1].trim();
+        const amountIndex = dataLine.indexOf(transactionAmount);
+        let beforeAmount = dataLine.substring(0, amountIndex).trim();
+        beforeAmount = beforeAmount.replace('评审价格 ', '').replace('评审总得分 ', '').replace('执行标准 ', '').trim();
+
+        console.log(`parseProviderInfoFromDescription beforeAmount`,beforeAmount);
+
+        // 提取供应商名称和地址
+        // 规则：供应商名称和地址之间用空格分割，第一个空格分割的为供应商名称，后面的为地址
+        const firstSpaceIndex = beforeAmount.indexOf(' ');
+        
+        let providerName = '';
+        let providerAddress = '';
+        
+        if (firstSpaceIndex > 0) {
+          // 找到第一个空格，按第一个空格分割
+          providerName = beforeAmount.substring(0, firstSpaceIndex).trim();
+          providerAddress = beforeAmount.substring(firstSpaceIndex + 1).trim();
+        } else {
+          // 如果没有空格，整个作为供应商名称
+          providerName = beforeAmount;
+          providerAddress = '';
+        }
           }
         }
 
@@ -1070,6 +1102,9 @@
           projectPurchaseWay: projectPurchaseWay,
           expireTime: expireTime,
           description: description,
+          providerName: providerName,
+          providerAddress: providerAddress,
+          transactionAmount: transactionAmount,
           crawledAt: new Date().toISOString()
         };
       } catch (error) {

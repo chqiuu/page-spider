@@ -145,6 +145,69 @@ class TenderInfoModel extends BaseModel {
     const [result] = await connection.execute(sql, [...values, tenderId]);
     return result;
   }
+
+  // 查询需要解析description的记录（有description但缺少供应商信息）
+  async findNeedParseDescription(conditions = {}) {
+    const connection = await this.getConnection();
+    let sql = `
+      SELECT * FROM ${this.tableName} 
+      WHERE description IS NOT NULL 
+      AND description != '' 
+      AND (provider_name IS NULL OR provider_name = '' 
+           OR provider_address IS NULL OR provider_address = '' 
+           OR transaction_amount IS NULL OR transaction_amount = '')
+    `;
+    const values = [];
+
+    // 支持按公告类型过滤
+    if (conditions.afficheType) {
+      sql += ` AND affiche_type = ?`;
+      values.push(conditions.afficheType);
+    }
+
+    // 支持按标志过滤
+    if (conditions.flag !== undefined) {
+      sql += ` AND flag = ?`;
+      values.push(conditions.flag);
+    }
+
+    sql += ` ORDER BY create_time DESC`;
+    
+    const [rows] = await connection.execute(sql, values);
+    return rows;
+  }
+
+  // 批量更新供应商信息
+  async batchUpdateProviderInfo(updates) {
+    if (!updates || updates.length === 0) {
+      return { affectedRows: 0 };
+    }
+
+    const connection = await this.getConnection();
+    let totalAffectedRows = 0;
+
+    // 批量更新，每次最多更新1000条
+    const batchSize = 1000;
+    for (let i = 0; i < updates.length; i += batchSize) {
+      const batch = updates.slice(i, i + batchSize);
+      
+      for (const update of batch) {
+        const { tenderId, providerName, providerAddress, transactionAmount } = update;
+        const updateData = {};
+        
+        if (providerName !== undefined) updateData.provider_name = providerName;
+        if (providerAddress !== undefined) updateData.provider_address = providerAddress;
+        if (transactionAmount !== undefined) updateData.transaction_amount = transactionAmount;
+        
+        if (Object.keys(updateData).length > 0) {
+          const result = await this.updateByTenderId(tenderId, updateData);
+          totalAffectedRows += result.affectedRows;
+        }
+      }
+    }
+
+    return { affectedRows: totalAffectedRows };
+  }
 }
 
 module.exports = TenderInfoModel;

@@ -77,6 +77,33 @@ class BaseModel {
 
     const connection = await this.getConnection();
     const fields = Object.keys(dataArray[0]);
+    console.log(`replaceBatch fields ${fields}`,fields);
+    const placeholder = `(${fields.map(() => '?').join(', ')})`;
+    let totalAffectedRows = 0;
+
+    // 批量替换，每次最多替换1000条
+    const batchSize = 1000;
+    for (let i = 0; i < dataArray.length; i += batchSize) {
+      const batch = dataArray.slice(i, i + batchSize);
+      console.log(`replaceBatch batch ${batch}`,batch);
+      const placeholders = batch.map(() => placeholder).join(', ');
+      const values = batch.flatMap(item => fields.map(field => item[field] !== undefined ? item[field] : null));
+      
+      const sql = `REPLACE INTO ${this.tableName} (${fields.join(', ')}) VALUES ${placeholders}`;
+    //  console.log(`sql ${sql}`,sql);
+      const [result] = await connection.execute(sql, values);
+      totalAffectedRows += result.affectedRows;
+    }
+
+    return { affectedRows: totalAffectedRows };
+  }
+  async replaceBatch1(dataArray) {
+    if (!dataArray || dataArray.length === 0) {
+      return { affectedRows: 0 };
+    }
+
+    const connection = await this.getConnection();
+    const fields = Object.keys(dataArray[0]);
     console.log(`fields ${fields}`,fields);
     const placeholder = `(${fields.map(() => '?').join(', ')})`;
     let totalAffectedRows = 0;
