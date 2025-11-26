@@ -13,6 +13,7 @@ router.post('/save', async (req, res) => {
     await dbManager.getConnection();
     const data = req.body;
     const result = await tenderInfoModel.save(data);
+    console.log(`tenderRoutes save result`,result);
     res.json({ success: true, ...result });
   } catch (error) {
     console.error('保存招标信息失败:', error);
@@ -29,6 +30,7 @@ router.post('/saveBatch', async (req, res) => {
     await dbManager.getConnection();
     const dataArray = req.body.items || req.body;
     const result = await tenderInfoModel.saveBatch(dataArray);
+    console.log(`tenderRoutes saveBatch result`,result);
     res.json({ success: true, count: result.count });
   } catch (error) {
     console.error('批量保存招标信息失败:', error);
