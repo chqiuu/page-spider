@@ -1,37 +1,39 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>页面爬虫工具</title>
   <link rel="stylesheet" href="popup.css">
 </head>
+
 <body>
   <div class="container">
     <header>
       <h1>页面爬虫工具</h1>
     </header>
-    
+
     <div class="section">
       <div class="status-bar" id="statusBar">
         <span class="status-text" id="statusText">就绪</span>
         <span class="status-indicator" id="statusIndicator"></span>
       </div>
     </div>
-    
+
     <div class="section">
       <label for="apiUrl">后端API地址:</label>
       <input type="text" id="apiUrl" placeholder="http://localhost:3000/api/tender" />
       <button id="testConnection" class="btn btn-secondary">测试连接</button>
     </div>
-    
+
     <div class="section">
       <div class="button-group">
         <button id="crawlBtn" class="btn btn-primary">开始爬取</button>
         <button id="stopBtn" class="btn btn-danger" disabled>停止</button>
       </div>
     </div>
-    
+
     <div class="section">
       <div class="info-panel">
         <div class="info-item">
@@ -48,19 +50,85 @@
         </div>
       </div>
     </div>
-    
-    <div class="section">
-      <div class="log-panel">
-        <div class="log-header">
-          <span>日志</span>
-          <button id="clearLog" class="btn-link">清空</button>
-        </div>
-        <div class="log-content" id="logContent"></div>
-      </div>
-    </div>
-  </div>
-  
-  <script src="popup.js"></script>
-</body>
-</html>
 
+    <div class="section">
+      <h3>支持的网站</h3>
+      <!DOCTYPE html>
+      <html lang="zh-CN">
+
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>页面爬虫工具</title>
+        <link rel="stylesheet" href="popup.css">
+      </head>
+
+      <body>
+        <div class="container">
+          <header>
+            <h1>页面爬虫工具</h1>
+          </header>
+
+          <div class="section">
+            <div class="status-bar" id="statusBar">
+              <span class="status-text" id="statusText">就绪</span>
+              <span class="status-indicator" id="statusIndicator"></span>
+            </div>
+          </div>
+
+          <div class="section">
+            <label for="apiUrl">后端API地址:</label>
+            <input type="text" id="apiUrl" placeholder="http://localhost:3000/api/tender" />
+            <button id="testConnection" class="btn btn-secondary">测试连接</button>
+          </div>
+
+          <div class="section">
+            <div class="button-group">
+              <button id="crawlBtn" class="btn btn-primary">开始爬取</button>
+              <button id="stopBtn" class="btn btn-danger" disabled>停止</button>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="info-panel">
+              <div class="info-item">
+                <span class="info-label">当前页面:</span>
+                <span class="info-value" id="currentPage">-</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">已爬取:</span>
+                <span class="info-value" id="crawledCount">0</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">已保存:</span>
+                <span class="info-value" id="savedCount">0</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>支持的网站</h3>
+            <div id="supportedSites" class="site-list">
+              <!-- 网站列表将通过JS动态生成 -->
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="log-panel">
+              <div class="log-header">
+                <span>日志</span>
+                <button id="clearLog" class="btn-link">清空</button>
+              </div>
+              <div class="log-content" id="logContent"></div>
+            </div>
+          </div>
+        </div>
+
+        <script src="siteRules/BaseSiteRule.js"></script>
+        <script src="siteRules/CcgpGovRule.js"></script>
+        <script src="siteRules/CcgpSichuanRule.js"></script>
+        <script src="siteRules/index.js"></script>
+        <script src="popup.js"></script>
+      </body>
+
+      </html>

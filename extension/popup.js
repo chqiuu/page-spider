@@ -25,14 +25,48 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadSettings();
   await updateCurrentPage();
   await checkBackendConnection();
-  
+
   // 绑定事件
   elements.crawlBtn.addEventListener('click', startCrawling);
   elements.stopBtn.addEventListener('click', stopCrawling);
   elements.testConnection.addEventListener('click', testConnection);
   elements.clearLog.addEventListener('click', clearLog);
   elements.apiUrl.addEventListener('change', saveApiUrl);
+
+  // 渲染支持的网站列表
+  renderSupportedSites();
 });
+
+// 渲染支持的网站列表
+function renderSupportedSites() {
+  const container = document.getElementById('supportedSites');
+  if (!container || !window.siteRuleManager) return;
+
+  const rules = window.siteRuleManager.getAllRules();
+  if (rules.length === 0) {
+    container.innerHTML = '<div class="site-item">暂无支持的网站</div>';
+    return;
+  }
+
+  container.innerHTML = '';
+  rules.forEach(rule => {
+    const item = document.createElement('div');
+    item.className = 'site-item';
+
+    const name = document.createElement('div');
+    name.className = 'site-name';
+    name.textContent = rule.name === 'CcgpGovRule' ? '中国政府采购网' :
+      rule.name === 'CcgpSichuanRule' ? '四川政府采购网' : rule.name;
+
+    const domain = document.createElement('div');
+    domain.className = 'site-domain';
+    domain.textContent = rule.domain;
+
+    item.appendChild(name);
+    item.appendChild(domain);
+    container.appendChild(item);
+  });
+}
 
 // 加载设置
 async function loadSettings() {
@@ -68,7 +102,7 @@ async function updateCurrentPage() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab) {
       elements.currentPage.textContent = tab.url || '-';
-      
+
       // 检查是否是目标页面
       if (tab.url && tab.url.includes('search.ccgp.gov.cn')) {
         updateStatus('ready', '目标页面已就绪');
@@ -87,7 +121,7 @@ async function checkBackendConnection() {
     const storage = await chrome.storage.local.get(['apiUrl']);
     const apiUrl = storage.apiUrl || 'http://localhost:3000/api/tender';
     const baseUrl = apiUrl.replace('/api/tender', '');
-    
+
     const response = await fetch(`${baseUrl}/api/health`);
     if (response.ok) {
       const data = await response.json();
@@ -114,7 +148,7 @@ async function startCrawling() {
   if (isCrawling) {
     return;
   }
-  
+
   try {
     // 获取当前标签页
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -122,26 +156,26 @@ async function startCrawling() {
       log('未找到活动标签页', 'error');
       return;
     }
-    
+
     // 检查是否是目标页面
     if (!tab.url || !tab.url.includes('search.ccgp.gov.cn')) {
       log('请先打开目标页面: https://search.ccgp.gov.cn', 'error');
       return;
     }
-    
+
     isCrawling = true;
     crawledCount = 0;
     savedCount = 0;
     updateUI();
     updateStatus('crawling', '正在爬取...');
     log('开始爬取数据...', 'info');
-    
+
     // 注入content script并执行爬取
     await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       files: ['content.js']
     });
-    
+
     // 发送爬取消息
     chrome.tabs.sendMessage(tab.id, { action: 'crawl' }, async (response) => {
       if (chrome.runtime.lastError) {
@@ -149,12 +183,12 @@ async function startCrawling() {
         stopCrawling();
         return;
       }
-      
+
       if (response && response.success) {
         const data = response.data;
         crawledCount = data.items ? data.items.length : 0;
         log(`爬取完成，共找到 ${crawledCount} 条数据`, 'success');
-        
+
         // 保存数据到后端
         if (data.items && data.items.length > 0) {
           await saveData(data.items);
@@ -167,7 +201,7 @@ async function startCrawling() {
         stopCrawling();
       }
     });
-    
+
   } catch (error) {
     log('开始爬取失败: ' + error.message, 'error');
     stopCrawling();
@@ -187,12 +221,12 @@ async function saveData(items) {
   try {
     updateStatus('crawling', '正在保存数据...');
     log(`正在保存 ${items.length} 条数据到后端...`, 'info');
-    
+
     const response = await chrome.runtime.sendMessage({
       action: 'saveData',
       data: items
     });
-    
+
     if (response && response.success) {
       savedCount = items.length;
       log(`成功保存 ${savedCount} 条数据`, 'success');
@@ -201,7 +235,7 @@ async function saveData(items) {
       log('保存失败: ' + (response?.error || '未知错误'), 'error');
       updateStatus('error', '保存失败');
     }
-    
+
     stopCrawling();
   } catch (error) {
     log('保存数据失败: ' + error.message, 'error');
